@@ -61,6 +61,10 @@ $(srcdir)/dist/%.yy.c: $(srcdir)/%.l
 $(srcdir)/dist/%.tab.c: $(srcdir)/%.y
 	$(YACC) -b $* $<
 
+$(srcdir)/dist/src:
+	mkdir -p $@
+
+genfiles: $(srcdir)/dist/src
 genfiles: $(patsubst $(srcdir)/%.l,$(srcdir)/dist/%.yy.c,$(wildcard $(add_suffix /*.l,$(SRC_DIRS))))
 genfiles: $(patsubst $(srcdir)/%.y,$(srcdir)/dist/%.tab.c,$(wildcard $(add_suffix /*.y,$(SRC_DIRS))))
 endif
