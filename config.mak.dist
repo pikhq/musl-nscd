@@ -1,0 +1,16 @@
+srcdir = .
+prefix = /usr/local
+exec_prefix = $(prefix)
+bindir = $(exec_prefix)/bin
+libdir = $(prefix)/lib
+includedir = $(prefix)/include
+syslibdir = /lib
+CROSS_COMPILE =
+CC = $(CROSS_COMPILE)gcc
+YACC = yacc
+LEX = lex
+CFLAGS = -O2 -pipe
+CFLAGS_C99 = -std=c99
+CPPFLAGS = 
+LDFLAGS = -s
+LDLIBS = -ll -ly -ldl -lpthread
