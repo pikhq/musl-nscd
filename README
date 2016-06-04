@@ -1,0 +1,11 @@
+musl-nscd is an implementation of the NSCD protocol. It makes use of NSS
+modules, just like with glibc. This permits alternative backends for the user
+and group databases for musl libc. The protocol it uses is a subset of that
+used by glibc. This project was created with the help of Contauro Ltd.
+
+Configuration of which modules to use should be given in /etc/nsswitch.conf.
+The syntax of the file matches glibc's.
+
+To build and install:
+./configure
+make
