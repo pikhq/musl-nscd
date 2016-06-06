@@ -1,0 +1,6 @@
+{
+  "name": "musl-nscd",
+  "tagline": "musl-nscd is an implementation of the NSCD protocol, suitable for use with musl and with standard NSS modules",
+  "body": "### Repository\r\nFor Alpine Linux, a simple repository has been set up at `https://pikhq.github.io/musl-nscd/alpine`; this can be put into your `/etc/apk/repositories` file. The public key that the repository was signed with is published at [[https://pikhq.github.io/musl-nscd/alpine/pikhq-57547ad8.rsa.pub]], and it is recommended you install it in /etc/apk/keys, if you intend to use this repository.",
+  "note": "Don't delete this file! It's used internally to help with page regeneration."
+}
