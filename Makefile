@@ -94,9 +94,14 @@ obj/test/%: $(srcdir)/%.c
 $(DESTDIR)$(bindir)/%: obj/%
 	$(INSTALL) -D $< $@
 
+$(DESTDIR)$(includedir)/%: $(srcdir)/include/%
+	$(INSTALL) -D -m 644 $< $@
+
+install-headers: $(DESTDIR)$(includedir)/nss.h
+
 install-tools: $(TOOLS:obj/%=$(DESTDIR)$(bindir)/%)
 
-install: install-tools
+install: install-tools install-headers
 
 clean:
 	rm -rf obj
