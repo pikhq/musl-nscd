@@ -1,6 +1,7 @@
 srcdir = .
 exec_prefix = /usr/local
 bindir = $(exec_prefix)/bin
+sbindir = $(exec_prefix)/sbin
 prefix = /usr/local
 includedir = $(prefix)/include
 libdir = $(prefix)/lib
@@ -94,12 +95,15 @@ obj/test/%: $(srcdir)/%.c
 $(DESTDIR)$(bindir)/%: obj/%
 	$(INSTALL) -D $< $@
 
+$(DESTDIR)$(sbindir)/%: obj/%
+	$(INSTALL) -D $< $@
+
 $(DESTDIR)$(includedir)/%: $(srcdir)/include/%
 	$(INSTALL) -D -m 644 $< $@
 
 install-headers: $(DESTDIR)$(includedir)/nss.h
 
-install-tools: $(TOOLS:obj/%=$(DESTDIR)$(bindir)/%)
+install-tools: $(TOOLS:obj/%=$(DESTDIR)$(sbindir)/%)
 
 install: install-tools install-headers
 

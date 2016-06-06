@@ -1,6 +1,7 @@
 srcdir = .
 prefix = /usr/local
 exec_prefix = $(prefix)
+sbindir = $(exec_prefix)/sbin
 bindir = $(exec_prefix)/bin
 libdir = $(prefix)/lib
 includedir = $(prefix)/include
