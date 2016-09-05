@@ -151,6 +151,7 @@ case "$arg" in
 --prefix=*) prefix=${arg#*=} ;;
 --exec-prefix=*) exec_prefix=${arg#*=} ;;
 --bindir=*) bindir=${arg#*=} ;;
+--sbindir=*) sbindir=${arg#*=} ;;
 --libdir=*) libdir=${arg#*=} ;;
 --includedir=*) includedir=${arg#*=} ;;
 --syslibdir=*) syslibdir=${arg#*=} ;;
