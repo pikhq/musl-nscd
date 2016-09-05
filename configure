@@ -19,7 +19,7 @@ Installation directories:
 Fine tuning of the installation directories:
   --bindir=DIR            user executables [EPREFIX/bin]
   --sbindir=DIR		  system executables [EPREFIX/sbin]
-  --libdir=DIR            library files for the linker [PREFIX/lib]
+  --libdir=DIR            library files for the linker [EPREFIX/lib]
   --includedir=DIR        include files for the C compiler [PREFIX/include]
   --syslibdir=DIR         location for the dynamic linker [/lib]
 
@@ -136,7 +136,7 @@ prefix=/usr/local/
 exec_prefix='$(prefix)'
 sbindir='$(exec_prefix)/sbin'
 bindir='$(exec_prefix)/bin'
-libdir='$(prefix)/lib'
+libdir='$(exec_prefix)/lib'
 includedir='$(prefix)/include'
 syslibdir='/lib'
 target=
