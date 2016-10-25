@@ -144,6 +144,8 @@ int main(int argc, char **argv)
 		if(bind(fd, (struct sockaddr*)&addr, sizeof addr) < 0) die();
 	}
 
+	chmod(socket_path, 0666);
+
 	if(listen(fd, 100) < 0) die();
 	locale_t l = newlocale(LC_ALL_MASK, "C", (locale_t)0);
 	if(!l) die();
