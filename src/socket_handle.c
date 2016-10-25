@@ -101,7 +101,7 @@ void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 			syslog(LOG_WARNING, "Received invalid request with a key length of 0; expected greater than 0");
 			goto cleanup_fd;
 		}
-
+	
 		switch(buf[REQTYPE]) {
 		case GETPWBYNAME: case GETGRBYNAME:
 			str = malloc(buf[REQKEYLEN]);
@@ -161,17 +161,42 @@ enum nss_status nss_getkey(uint32_t reqtype, void *fn, void *key, void *res, cha
 	nss_getgrgid_r fn_grgid;
 	nss_getpwnam_r fn_pwnam;
 	nss_getpwuid_r fn_pwuid;
+	int retval = NSS_STATUS_UNAVAIL;
 	switch(reqtype) {
 	case GETPWBYNAME:
-		return ((nss_getpwnam_r)fn)((char*)key, (struct passwd*)res, buf, n, ret);
+		retval = ((nss_getpwnam_r)fn)((char*)key, (struct passwd*)res, buf, n, ret);
+		break;
 	case GETPWBYUID:
-		return ((nss_getpwuid_r)fn)((uid_t)*(uint32_t*)key, (struct passwd*)res, buf, n, ret);
+		retval = ((nss_getpwuid_r)fn)((uid_t)*(uint32_t*)key, (struct passwd*)res, buf, n, ret);
+		break;
 	case GETGRBYNAME:
-		return ((nss_getgrnam_r)fn)((char*)key, (struct group*)res, buf, n, ret);
+		retval = ((nss_getgrnam_r)fn)((char*)key, (struct group*)res, buf, n, ret);
+		break;
 	case GETGRBYGID:
-		return ((nss_getgrgid_r)fn)((gid_t)*(uint32_t*)key, (struct group*)res, buf, n, ret);
+		retval = ((nss_getgrgid_r)fn)((gid_t)*(uint32_t*)key, (struct group*)res, buf, n, ret);
+		break;
 	}
-	return NSS_STATUS_UNAVAIL;
+	if(retval == NSS_STATUS_SUCCESS && (reqtype == GETPWBYNAME || reqtype == GETPWBYUID)) {
+		struct passwd *pwd = res;
+		if(!pwd->pw_name) retval = NSS_STATUS_NOTFOUND;
+#ifdef HAVE_PW_PASSWD
+		if(!pwd->pw_passwd) retval = NSS_STATUS_NOTFOUND;
+#endif
+#ifdef HAVE_PW_GECOS
+		if(!pwd->pw_gecos) retval = NSS_STATUS_NOTFOUND;
+#endif
+		if(!pwd->pw_dir) retval = NSS_STATUS_NOTFOUND;
+		if(!pwd->pw_shell) retval = NSS_STATUS_NOTFOUND;
+	}
+	if(retval == NSS_STATUS_SUCCESS && (reqtype == GETGRBYNAME || reqtype == GETGRBYGID)) {
+		struct group *grp = res;
+		if(!grp->gr_name) retval = NSS_STATUS_NOTFOUND;
+#ifdef HAVE_GR_PASSWD
+		if(!grp->gr_passwd) retval = NSS_STATUS_NOTFOUND;
+#endif
+		if(!grp->gr_mem) retval = NSS_STATUS_NOTFOUND;
+	}
+	return retval;
 }
 
 int return_result(int fd, int swap, uint32_t reqtype, void *key)
@@ -219,6 +244,7 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 			mod_passwd = 0;
 		}
 		do {
+			memset(&res, 0, sizeof(res));
 			fn =
 				reqtype == GETPWBYNAME ? (void*)mod_passwd->nss_getpwnam_r :
 				reqtype == GETPWBYUID ? (void*)mod_passwd->nss_getpwuid_r :
