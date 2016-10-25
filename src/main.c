@@ -38,9 +38,28 @@ static void *get_fn(void *dll, const char *name, const char *service)
 	void *fn;
 	if(asprintf(&fnname, "_nss_%s_%s_r", service, name) < 0) die();
 	fn = dlsym(dll, fnname);
-	if(!fn) die_fmt("%s: %s", fnname, dlerror());
 	free(fnname);
 	return fn;
+}
+
+static enum nss_status null_getpwnam_r(const char *a, struct passwd *b, char *c, size_t d, int *e)
+{
+	return NSS_STATUS_NOTFOUND;
+}
+
+static enum nss_status null_getpwuid_r(uid_t a, struct passwd *b, char *c, size_t d, int *e)
+{
+	return NSS_STATUS_NOTFOUND;
+}
+
+static enum nss_status null_getgrnam_r(const char *a, struct group *b, char *c, size_t d, int *e)
+{
+	return NSS_STATUS_NOTFOUND;
+}
+
+static enum nss_status null_getgrgid_r(gid_t a, struct group *b, char *c, size_t d, int *e)
+{
+	return NSS_STATUS_NOTFOUND;
 }
 
 int main(int argc, char **argv)
@@ -99,7 +118,9 @@ int main(int argc, char **argv)
 
 				dll = get_dll(service->service);
 				mod->nss_getpwnam_r = (nss_getpwnam_r)get_fn(dll, "getpwnam", service->service);
+				if(!mod->nss_getpwnam_r) mod->nss_getpwnam_r = null_getpwnam_r;
 				mod->nss_getpwuid_r = (nss_getpwuid_r)get_fn(dll, "getpwuid", service->service);
+				if(!mod->nss_getpwuid_r) mod->nss_getpwuid_r = null_getpwuid_r;
 
 				memcpy(mod->on_status, service->on_status, sizeof(mod->on_status));
 
@@ -112,7 +133,9 @@ int main(int argc, char **argv)
 
 				dll = get_dll(service->service);
 				mod->nss_getgrnam_r = (nss_getgrnam_r)get_fn(dll, "getgrnam", service->service);
+				if(!mod->nss_getgrnam_r) mod->nss_getgrnam_r = null_getgrnam_r;
 				mod->nss_getgrgid_r = (nss_getgrgid_r)get_fn(dll, "getgrgid", service->service);
+				if(!mod->nss_getgrgid_r) mod->nss_getgrgid_r = null_getgrgid_r;
 				dlclose(dll);
 
 				memcpy(mod->on_status, service->on_status, sizeof(mod->on_status));
