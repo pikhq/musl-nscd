@@ -21,8 +21,12 @@ static void *get_dll(const char *service)
 {
 	char *path;
 	void *dll;
-	if(asprintf(&path, "libnss_%s.so", service) < 0) die();
+	if(asprintf(&path, "libnss_%s.so.2", service) < 0) die();
 	dll = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+	if(!dll) {
+		sprintf(path, "libnss_%s.so", service);
+		dll = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+	}
 	if(!dll) die_fmt("%s: %s", path, dlerror());
 	free(path);
 	return dll;
