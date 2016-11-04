@@ -103,7 +103,7 @@ void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 		}
 	
 		switch(buf[REQTYPE]) {
-		case GETPWBYNAME: case GETGRBYNAME:
+		case GETPWBYNAME: case GETGRBYNAME: case GETINITGR:
 			str = malloc(buf[REQKEYLEN]);
 			if(!str) {
 				syslog(LOG_ERR, "error in malloc: %s", strerror_l(errno, l));
@@ -155,6 +155,12 @@ end:
 
 }
 
+struct initgroups_res {
+	long end;
+	long alloc;
+	gid_t *grps;
+};
+
 enum nss_status nss_getkey(uint32_t reqtype, void *fn, void *key, void *res, char *buf, size_t n, int *ret)
 {
 	nss_getgrnam_r fn_grnam;
@@ -162,6 +168,7 @@ enum nss_status nss_getkey(uint32_t reqtype, void *fn, void *key, void *res, cha
 	nss_getpwnam_r fn_pwnam;
 	nss_getpwuid_r fn_pwuid;
 	int retval = NSS_STATUS_UNAVAIL;
+	struct initgroups_res *initgroups_res;
 	switch(reqtype) {
 	case GETPWBYNAME:
 		retval = ((nss_getpwnam_r)fn)((char*)key, (struct passwd*)res, buf, n, ret);
@@ -174,6 +181,10 @@ enum nss_status nss_getkey(uint32_t reqtype, void *fn, void *key, void *res, cha
 		break;
 	case GETGRBYGID:
 		retval = ((nss_getgrgid_r)fn)((gid_t)*(uint32_t*)key, (struct group*)res, buf, n, ret);
+		break;
+	case GETINITGR:
+		initgroups_res = res;
+		retval = ((nss_initgroups_dyn)fn)((char*)key, (gid_t)-1, &(initgroups_res->end), &(initgroups_res->alloc), &(initgroups_res->grps), UINT32_MAX, ret);
 		break;
 	}
 	if(retval == NSS_STATUS_SUCCESS && (reqtype == GETPWBYNAME || reqtype == GETPWBYUID)) {
@@ -204,12 +215,13 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 	union {
 		struct passwd p;
 		struct group g;
+		struct initgroups_res l;
 	} res;
 	link_t *l;
 	struct mod_group *mod_group;
 	struct mod_passwd *mod_passwd;
-	char *buf;
-	size_t buf_len;
+	char *buf = 0;
+	size_t buf_len = 0;
 	long tmp;
 	void *fn;
 
@@ -249,7 +261,8 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 				reqtype == GETPWBYNAME ? (void*)mod_passwd->nss_getpwnam_r :
 				reqtype == GETPWBYUID ? (void*)mod_passwd->nss_getpwuid_r :
 				reqtype == GETGRBYNAME ? (void*)mod_group->nss_getgrnam_r :
-				(void*)mod_group->nss_getgrgid_r;
+				reqtype == GETGRBYGID ? (void*)mod_group->nss_getgrgid_r :
+				(void*)mod_group->nss_initgroups_dyn;
 			status = nss_getkey(reqtype, fn, key, &res, buf, buf_len, &ret);
 			if(status == NSS_STATUS_TRYAGAIN && ret == ERANGE) {
 				size_t new_len;
@@ -284,18 +297,25 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 			int err;
 			if(mod_passwd)
 				err = write_pwd(fd, swap, status == NSS_STATUS_SUCCESS ? &res.p : 0);
-			else
+			else if(reqtype != GETINITGR)
 				err = write_grp(fd, swap, status == NSS_STATUS_SUCCESS ? &res.g : 0);
+			else {
+				err = write_groups(fd, swap, status == NSS_STATUS_SUCCESS ? res.l.end : 0, status == NSS_STATUS_SUCCESS ? res.l.grps : 0);
+				free(res.l.grps);
+			}
 			if(err == -1) {
 				free(buf);
 				return -1;
 			}
 			if(err == -2) {
 				if(on_status[STS_UNAVAIL] == ACT_RETURN) {
+					free(buf);
 					if(mod_passwd)
 						return write_pwd(fd, swap, 0) > 0 ? 0 : -1;
-					else
+					else if(reqtype != GETINITGR)
 						return write_grp(fd, swap, 0) > 0 ? 0 : -1;
+					else
+						return write_groups(fd, swap, 0 > 0 ? 0 : -1, 0);
 				}
 				continue;
 			}
@@ -303,9 +323,14 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 	}
 	if(!l) {
 		free(buf);
-		if(reqtype == GETPWBYNAME || reqtype == GETPWBYUID)
+		switch(reqtype) {
+		case GETPWBYNAME: case GETPWBYUID:
 			return write_pwd(fd, swap, 0) > 0 ? 0 : -1;
-		return write_grp(fd, swap, 0) > 0 ? 0 : -1;
+		case GETGRBYNAME: case GETGRBYGID:
+			return write_grp(fd, swap, 0) > 0 ? 0 : -1;
+		case GETINITGR:
+			return write_groups(fd, swap, 0 > 0 ? 0 : -1, 0);
+		}
 	}
 
 }

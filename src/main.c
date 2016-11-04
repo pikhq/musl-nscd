@@ -36,7 +36,7 @@ static void *get_fn(void *dll, const char *name, const char *service)
 {
 	char *fnname;
 	void *fn;
-	if(asprintf(&fnname, "_nss_%s_%s_r", service, name) < 0) die();
+	if(asprintf(&fnname, "_nss_%s_%s", service, name) < 0) die();
 	fn = dlsym(dll, fnname);
 	free(fnname);
 	return fn;
@@ -58,6 +58,11 @@ static enum nss_status null_getgrnam_r(const char *a, struct group *b, char *c, 
 }
 
 static enum nss_status null_getgrgid_r(gid_t a, struct group *b, char *c, size_t d, int *e)
+{
+	return NSS_STATUS_NOTFOUND;
+}
+
+static enum nss_status null_initgroups_dyn(const char *a, gid_t b, long *c, long *d, gid_t **e, long f, int *g)
 {
 	return NSS_STATUS_NOTFOUND;
 }
@@ -117,9 +122,9 @@ int main(int argc, char **argv)
 				if(!mod) die();
 
 				dll = get_dll(service->service);
-				mod->nss_getpwnam_r = (nss_getpwnam_r)get_fn(dll, "getpwnam", service->service);
+				mod->nss_getpwnam_r = (nss_getpwnam_r)get_fn(dll, "getpwnam_r", service->service);
 				if(!mod->nss_getpwnam_r) mod->nss_getpwnam_r = null_getpwnam_r;
-				mod->nss_getpwuid_r = (nss_getpwuid_r)get_fn(dll, "getpwuid", service->service);
+				mod->nss_getpwuid_r = (nss_getpwuid_r)get_fn(dll, "getpwuid_r", service->service);
 				if(!mod->nss_getpwuid_r) mod->nss_getpwuid_r = null_getpwuid_r;
 
 				memcpy(mod->on_status, service->on_status, sizeof(mod->on_status));
@@ -132,10 +137,12 @@ int main(int argc, char **argv)
 				if(!mod) die();
 
 				dll = get_dll(service->service);
-				mod->nss_getgrnam_r = (nss_getgrnam_r)get_fn(dll, "getgrnam", service->service);
+				mod->nss_getgrnam_r = (nss_getgrnam_r)get_fn(dll, "getgrnam_r", service->service);
 				if(!mod->nss_getgrnam_r) mod->nss_getgrnam_r = null_getgrnam_r;
-				mod->nss_getgrgid_r = (nss_getgrgid_r)get_fn(dll, "getgrgid", service->service);
+				mod->nss_getgrgid_r = (nss_getgrgid_r)get_fn(dll, "getgrgid_r", service->service);
 				if(!mod->nss_getgrgid_r) mod->nss_getgrgid_r = null_getgrgid_r;
+				mod->nss_initgroups_dyn = (nss_initgroups_dyn)get_fn(dll, "initgroups_dyn", service->service);
+				if(!mod->nss_initgroups_dyn) mod->nss_initgroups_dyn = null_initgroups_dyn;
 				dlclose(dll);
 
 				memcpy(mod->on_status, service->on_status, sizeof(mod->on_status));

@@ -26,6 +26,7 @@ int full_read(int, char*, size_t);
 uint32_t swap32(uint32_t);
 int write_pwd(int, int, struct passwd*);
 int write_grp(int, int, struct group*);
+int write_groups(int, int, size_t, gid_t*);
 void socket_handle(int, int, locale_t, void*);
 
 #endif

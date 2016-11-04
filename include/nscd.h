@@ -8,6 +8,7 @@
 #define GETPWBYUID 1
 #define GETGRBYNAME 2
 #define GETGRBYGID 3
+#define GETINITGR 15
 
 #define REQVERSION 0
 #define REQTYPE 1
@@ -24,6 +25,11 @@
 #define PWDIRLEN 7
 #define PWSHELLLEN 8
 #define PW_LEN 9
+
+#define INITGRVERSION 0
+#define INITGRFOUND 1
+#define INITGRNGRPS 2
+#define INITGR_LEN 3
 
 #define GRVERSION 0
 #define GRFOUND 1

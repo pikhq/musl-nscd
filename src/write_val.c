@@ -134,3 +134,40 @@ int write_grp(int fd, int swap, struct group *grp)
 	}
 	return 0;
 }
+
+int write_groups(int fd, int swap, size_t len, gid_t *groups)
+{
+	uint32_t head[INITGR_LEN] = {
+		NSCDVERSION
+	};
+	size_t i;
+	if(len > UINT32_MAX) {
+		return -2;
+	}
+	head[INITGRNGRPS] = len;
+	for(i = 0; i < len; i++) {
+		if(groups[i] == (gid_t)-1) {
+			head[INITGRNGRPS]--;
+			continue;
+		}
+		if(groups[i] < 0 || groups[i] > UINT32_MAX)
+			return -2;
+	}
+	head[INITGRFOUND] = !!len;
+
+	if(swap) {
+		for(i = 0; i < GR_LEN; i++) {
+			head[i] = swap32(head[i]);
+		}
+	}
+
+	if(full_write(fd, (char*)head, sizeof head < 0)) return -1;
+
+	for(i = 0; i < len; i++) {
+		if(groups[i] == (gid_t)-1) continue;
+		uint32_t tmp = swap ? swap32(groups[i]) : groups[i];
+		if(full_write(fd, (char*)&tmp, sizeof(uint32_t)) < 0) return -1;
+	}
+
+	return 0;
+}
