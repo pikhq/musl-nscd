@@ -1,3 +1,4 @@
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <stdbool.h>
@@ -75,6 +76,8 @@ int main(int argc, char **argv)
 	char *pid_path = 0;
 	bool daemonize = false;
 	int c;
+
+	signal(SIGPIPE, SIG_IGN);
 
 	init_program_invocation_name(argv[0]);
 
