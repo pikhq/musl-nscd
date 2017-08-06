@@ -315,7 +315,7 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 					else if(reqtype != GETINITGR)
 						return write_grp(fd, swap, 0) > 0 ? 0 : -1;
 					else
-						return write_groups(fd, swap, 0 > 0 ? 0 : -1, 0);
+						return write_groups(fd, swap, 0, 0) > 0 ? 0 : -1;
 				}
 				continue;
 			}
@@ -329,7 +329,7 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 		case GETGRBYNAME: case GETGRBYGID:
 			return write_grp(fd, swap, 0) > 0 ? 0 : -1;
 		case GETINITGR:
-			return write_groups(fd, swap, 0 > 0 ? 0 : -1, 0);
+			return write_groups(fd, swap, 0, 0) > 0 ? 0 : -1;
 		}
 	}
 

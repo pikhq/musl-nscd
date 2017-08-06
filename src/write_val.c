@@ -156,12 +156,12 @@ int write_groups(int fd, int swap, size_t len, gid_t *groups)
 	head[INITGRFOUND] = !!len;
 
 	if(swap) {
-		for(i = 0; i < GR_LEN; i++) {
+		for(i = 0; i < INITGR_LEN; i++) {
 			head[i] = swap32(head[i]);
 		}
 	}
 
-	if(full_write(fd, (char*)head, sizeof head < 0)) return -1;
+	if(full_write(fd, (char*)head, sizeof head) < 0) return -1;
 
 	for(i = 0; i < len; i++) {
 		if(groups[i] == (gid_t)-1) continue;
