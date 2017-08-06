@@ -239,7 +239,7 @@ tryyacc yacc
 tryyacc ${CROSS_COMPILE}bison
 tryyacc bison
 printf "%s\n" "$YACC"
-test -n "$YACC" || { echo "$0: cannot find yacc. Will try to use pre-provided source." ; exit 1 ; }
+test -n "$YACC" || echo "$0: cannot find yacc. Will try to use pre-provided source."
 
 #
 # Find a lex to use
@@ -250,7 +250,7 @@ trylex lex
 trylex ${CROSS_COMPILE}flex
 trylex lex
 printf "%s\n" "$LEX"
-test -n "$LEX" || { echo "$0: cannot find lex. Will try to use pre-provided source." ; exit 1 ; }
+test -n "$LEX" || echo "$0: cannot find lex. Will try to use pre-provided source."
 
 
 #
