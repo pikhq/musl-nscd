@@ -9,6 +9,8 @@
 #include <unistd.h>
 #include <inttypes.h>
 #include <semaphore.h>
+#include <ctype.h>
+#include <limits.h>
 
 #include "util.h"
 #include "nss.h"
@@ -32,6 +34,27 @@ static void *start_thread(void *args)
 	return 0;
 }
 
+static int strtouid(const char *restrict buf, uint32_t *id)
+{
+	char *end;
+	unsigned long n;
+	errno = 0;
+	if(!isdigit(buf[0])) {
+		errno = EINVAL;
+		return 1;
+	}
+	n = strtoul(buf, &end, 10);
+	if(n == ULONG_MAX) {
+		if(errno) return 1;
+	}
+	if(n > UINT32_MAX || *end != '\0') {
+		errno = EINVAL;
+		return 1;
+	}
+	*id = n;
+	return 0;
+}
+
 void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 {
 	struct pollfd pollfd;
@@ -51,6 +74,7 @@ void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 		int errno_stash;
 		uint32_t buf[REQ_LEN];
 		char *str = 0;
+		char idbuf[11];
 		uint32_t id;
 		void *key;
 		void *result;
@@ -120,16 +144,22 @@ void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 			key = str;
 			break;
 		case GETPWBYUID: case GETGRBYGID:
-			if(buf[REQKEYLEN] != 4) {
-				syslog(LOG_ERR, "Received invalid request for %"PRIu32", expected length 4 got %"PRIu32, buf[REQTYPE], buf[REQKEYLEN]);
+			if(buf[REQKEYLEN] > 11) {
+				syslog(LOG_ERR, "Received invalid request for %"PRIu32", expected length 11 or less got %"PRIu32, buf[REQTYPE], buf[REQKEYLEN]);
 				goto cleanup_fd;
 			}
-			if(full_read(n, (char*)&id, buf[REQKEYLEN]) < 0) {
+			if(full_read(n, idbuf, buf[REQKEYLEN]) < 0) {
 				syslog(LOG_ERR, "error in read: %s", strerror_l(errno, l));
 				goto cleanup_fd;
 			}
-			if(swap)
-				id = swap32(id);
+			if(str[buf[REQKEYLEN]-1]) {
+				syslog(LOG_ERR, "Received invalid request");
+				goto cleanup_fd;
+			}
+			if(strtouid(idbuf, &id)) {
+				syslog(LOG_ERR, "Received invalid request");
+				goto cleanup_fd;
+			}
 			key = &id;
 			break;
 		default:
