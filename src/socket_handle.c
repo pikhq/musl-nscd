@@ -152,7 +152,7 @@ void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 				syslog(LOG_ERR, "error in read: %s", strerror_l(errno, l));
 				goto cleanup_fd;
 			}
-			if(str[buf[REQKEYLEN]-1]) {
+			if(idbuf[buf[REQKEYLEN]-1]) {
 				syslog(LOG_ERR, "Received invalid request");
 				goto cleanup_fd;
 			}
