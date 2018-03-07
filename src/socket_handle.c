@@ -264,7 +264,7 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 		buf = malloc(buf_len);
 		if(!buf) return -1;
 		break;
-	case GETGRBYNAME: case GETGRBYGID:
+	case GETGRBYNAME: case GETGRBYGID: case GETINITGR:
 		l = list_head(&group_mods);
 		tmp = sysconf(_SC_GETGR_R_SIZE_MAX);
 		if(tmp < 0) buf_len = 4096;
