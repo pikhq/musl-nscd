@@ -314,6 +314,7 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 					return -1;
 				}
 				buf = new_buf;
+				buf_len = new_len;
 			}
 		} while(status == NSS_STATUS_TRYAGAIN && ret == ERANGE);
 
