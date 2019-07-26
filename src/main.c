@@ -99,7 +99,7 @@ int main(int argc, char **argv)
 	}
 
 	yyin = fopen(config_path, "r");
-	if(!yyin) die();
+	if(!yyin) die_fmt("%s was not found", config_path);
 
 	errno = 0;
 	if(yyparse()) {
