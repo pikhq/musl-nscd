@@ -214,6 +214,9 @@ enum nss_status nss_getkey(uint32_t reqtype, void *fn, void *key, void *res, cha
 		break;
 	case GETINITGR:
 		initgroups_res = res;
+		initgroups_res->end = 0;
+		initgroups_res->alloc = NGROUPS_MAX + 1;
+		initgroups_res->grps = (gid_t*)malloc(sizeof(gid_t) * NGROUPS_MAX + 1);
 		retval = ((nss_initgroups_dyn)fn)((char*)key, (gid_t)-1, &(initgroups_res->end), &(initgroups_res->alloc), &(initgroups_res->grps), UINT32_MAX, ret);
 		break;
 	}
