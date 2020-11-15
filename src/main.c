@@ -18,6 +18,9 @@
 #include "parse.h"
 #include "util.h"
 
+list_t passwd_mods;
+list_t group_mods;
+
 static void *get_dll(const char *service)
 {
 	char *path;
