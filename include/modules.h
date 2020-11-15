@@ -28,7 +28,7 @@ struct mod_passwd {
 	link_t link;
 };
 
-list_t passwd_mods;
-list_t group_mods;
+extern list_t passwd_mods;
+extern list_t group_mods;
 
 #endif
