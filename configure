@@ -208,7 +208,7 @@ trap 'rm "$tmpc"' EXIT INT QUIT TERM HUP
 #
 # Set CROSS_COMPILE from target if needed
 #
-if [ -z "$CROSS_COMPILE" ] && [ -n "$target" ];then
+if test -z "$CROSS_COMPILE" && test -n "$target";then
 	CROSS_COMPILE=$target-
 fi
 
