@@ -109,6 +109,7 @@ int main(int argc, char **argv)
 		if(errno) die();
 		return 1;
 	}
+	fclose(yyin);
 
 	link_t *entry_l, *service_l;
 
