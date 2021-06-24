@@ -55,11 +55,17 @@ static int strtouid(const char *restrict buf, uint32_t *id)
 	return 0;
 }
 
+static sem_t sem;
+
+int init_socket_handling(void)
+{
+	return sem_init(&sem, 0, 0);
+}
+
 void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 {
 	struct pollfd pollfd;
 	struct pthread_args args;
-	static sem_t sem;
 	pollfd.fd = fd;
 	pollfd.events = POLLIN;
 

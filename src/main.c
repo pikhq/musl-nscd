@@ -229,5 +229,6 @@ int main(int argc, char **argv)
 
 	chdir("/");
 
+	if (init_socket_handling() < 0) die();
 	socket_handle(fd, -1, l, 0);
 }
