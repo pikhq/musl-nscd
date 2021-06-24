@@ -106,8 +106,11 @@ void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 		}
 		sem_trywait(&sem);
 		if(sem_trywait(&sem) == -1) {
-			if(pthread_create((pthread_t[]){}, 0, start_thread, pthread_args)) {
+			pthread_t thread;
+			if(pthread_create(&thread, 0, start_thread, pthread_args)) {
 				syslog(LOG_ERR, "error in pthread_create: %s", strerror_l(errno, l));
+			} else {
+				pthread_detach(thread);
 			}
 		} else {
 			sem_post(&sem);
