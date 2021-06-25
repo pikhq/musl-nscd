@@ -123,6 +123,8 @@ void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 		}
 
 		if(buf[REQVERSION] != NSCDVERSION && buf[REQVERSION] == swap32(NSCDVERSION)) {
+			/* means our endianness doesn't match the requester's */
+			swap = 1;
 			for(int i = 0; i < REQ_LEN; i++)
 				buf[i] = swap32(buf[i]);
 		}
