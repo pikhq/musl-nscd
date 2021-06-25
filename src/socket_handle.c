@@ -309,7 +309,6 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 			if(status == NSS_STATUS_TRYAGAIN && ret == ERANGE) {
 				size_t new_len;
 				char *new_buf;
-				if(ret == EAGAIN) break;
 				if(buf_len == SIZE_MAX) {
 					free(buf);
 					errno = ENOMEM;
