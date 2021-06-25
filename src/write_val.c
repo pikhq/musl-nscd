@@ -9,7 +9,7 @@
 
 int write_pwd(int fd, int swap, struct passwd *pwd)
 {
-	uint32_t head[9] = {
+	uint32_t head[PW_LEN] = {
 		NSCDVERSION
 	};
 	size_t namelen = 0, passwdlen = 0, gecoslen = 0, dirlen = 0, shelllen = 0;
