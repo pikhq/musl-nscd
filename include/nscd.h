@@ -39,4 +39,7 @@
 #define GRMEMCNT 5
 #define GR_LEN 6
 
+#define ISPWREQ(r) (r==GETPWBYNAME || r==GETPWBYUID)
+#define ISGRPREQ(r) (r==GETGRBYNAME || r==GETGRBYGID)
+
 #endif
