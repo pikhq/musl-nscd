@@ -11,6 +11,7 @@
 #include <semaphore.h>
 #include <ctype.h>
 #include <limits.h>
+#include <assert.h>
 
 #include "util.h"
 #include "nss.h"
@@ -202,36 +203,37 @@ struct initgroups_res {
 	gid_t *grps;
 };
 
-static enum nss_status nss_getkey(uint32_t reqtype, void *fn, void *key, void *res, char *buf, size_t n, int *ret)
+static enum nss_status nss_getkey(uint32_t reqtype, struct mod_passwd *mod_passwd, struct mod_group *mod_group, void *key, void *res, char *buf, size_t n, int *ret)
 {
-	nss_getgrnam_r fn_grnam;
-	nss_getgrgid_r fn_grgid;
-	nss_getpwnam_r fn_pwnam;
-	nss_getpwuid_r fn_pwuid;
 	int retval = NSS_STATUS_UNAVAIL;
 	struct initgroups_res *initgroups_res;
+
+	/* for debug only: guarantee the nss_getkey function is being used correctly */
+	if(ISPWREQ(reqtype)) assert(mod_passwd);
+	else assert(mod_group);
+
 	switch(reqtype) {
 	case GETPWBYNAME:
-		retval = ((nss_getpwnam_r)fn)((char*)key, (struct passwd*)res, buf, n, ret);
+		retval = mod_passwd->nss_getpwnam_r((char*)key, (struct passwd*)res, buf, n, ret);
 		break;
 	case GETPWBYUID:
-		retval = ((nss_getpwuid_r)fn)((uid_t)*(uint32_t*)key, (struct passwd*)res, buf, n, ret);
+		retval = mod_passwd->nss_getpwuid_r((uid_t)*(uint32_t*)key, (struct passwd*)res, buf, n, ret);
 		break;
 	case GETGRBYNAME:
-		retval = ((nss_getgrnam_r)fn)((char*)key, (struct group*)res, buf, n, ret);
+		retval = mod_group->nss_getgrnam_r((char*)key, (struct group*)res, buf, n, ret);
 		break;
 	case GETGRBYGID:
-		retval = ((nss_getgrgid_r)fn)((gid_t)*(uint32_t*)key, (struct group*)res, buf, n, ret);
+		retval = mod_group->nss_getgrgid_r((gid_t)*(uint32_t*)key, (struct group*)res, buf, n, ret);
 		break;
 	case GETINITGR:
 		initgroups_res = res;
 		initgroups_res->end = 0;
 		initgroups_res->alloc = NGROUPS_MAX + 1;
 		initgroups_res->grps = (gid_t*)malloc(sizeof(gid_t) * initgroups_res->alloc);
-		retval = ((nss_initgroups_dyn)fn)((char*)key, (gid_t)-1, &(initgroups_res->end), &(initgroups_res->alloc), &(initgroups_res->grps), UINT32_MAX, ret);
+		retval = mod_group->nss_initgroups_dyn((char*)key, (gid_t)-1, &(initgroups_res->end), &(initgroups_res->alloc), &(initgroups_res->grps), UINT32_MAX, ret);
 		break;
 	}
-	if(retval == NSS_STATUS_SUCCESS && (reqtype == GETPWBYNAME || reqtype == GETPWBYUID)) {
+	if(retval == NSS_STATUS_SUCCESS && ISPWREQ(reqtype)) {
 		struct passwd *pwd = res;
 		if(!pwd->pw_name) retval = NSS_STATUS_NOTFOUND;
 #ifdef HAVE_PW_PASSWD
@@ -243,7 +245,7 @@ static enum nss_status nss_getkey(uint32_t reqtype, void *fn, void *key, void *r
 		if(!pwd->pw_dir) retval = NSS_STATUS_NOTFOUND;
 		if(!pwd->pw_shell) retval = NSS_STATUS_NOTFOUND;
 	}
-	if(retval == NSS_STATUS_SUCCESS && (reqtype == GETGRBYNAME || reqtype == GETGRBYGID)) {
+	if(retval == NSS_STATUS_SUCCESS && ISGRPREQ(reqtype)) {
 		struct group *grp = res;
 		if(!grp->gr_name) retval = NSS_STATUS_NOTFOUND;
 #ifdef HAVE_GR_PASSWD
@@ -267,7 +269,6 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 	char *buf = 0;
 	size_t buf_len = 0;
 	long tmp;
-	void *fn;
 
 	switch(reqtype) {
 	case GETPWBYNAME: case GETPWBYUID:
@@ -301,13 +302,7 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 		}
 		do {
 			memset(&res, 0, sizeof(res));
-			fn =
-				reqtype == GETPWBYNAME ? (void*)mod_passwd->nss_getpwnam_r :
-				reqtype == GETPWBYUID ? (void*)mod_passwd->nss_getpwuid_r :
-				reqtype == GETGRBYNAME ? (void*)mod_group->nss_getgrnam_r :
-				reqtype == GETGRBYGID ? (void*)mod_group->nss_getgrgid_r :
-				(void*)mod_group->nss_initgroups_dyn;
-			status = nss_getkey(reqtype, fn, key, &res, buf, buf_len, &ret);
+			status = nss_getkey(reqtype, mod_passwd, mod_group, key, &res, buf, buf_len, &ret);
 			if(status == NSS_STATUS_TRYAGAIN && ret == ERANGE) {
 				size_t new_len;
 				char *new_buf;
