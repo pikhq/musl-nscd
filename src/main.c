@@ -150,7 +150,6 @@ int main(int argc, char **argv)
 				if(!mod->nss_getgrgid_r) mod->nss_getgrgid_r = null_getgrgid_r;
 				mod->nss_initgroups_dyn = (nss_initgroups_dyn)get_fn(dll, "initgroups_dyn", service->service);
 				if(!mod->nss_initgroups_dyn) mod->nss_initgroups_dyn = null_initgroups_dyn;
-				dlclose(dll);
 
 				memcpy(mod->on_status, service->on_status, sizeof(mod->on_status));
 
