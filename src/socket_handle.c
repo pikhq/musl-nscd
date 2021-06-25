@@ -117,7 +117,7 @@ void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 		}
 
 
-		if(full_read(n, (char*)buf, REQ_LEN * sizeof(uint32_t)) < 0) {
+		if(full_read(n, (char*)buf, sizeof buf) < 0) {
 			syslog(LOG_ERR, "error in read: %s", strerror_l(errno, l));
 			goto cleanup_fd;
 		}
@@ -200,7 +200,7 @@ struct initgroups_res {
 	gid_t *grps;
 };
 
-enum nss_status nss_getkey(uint32_t reqtype, void *fn, void *key, void *res, char *buf, size_t n, int *ret)
+static enum nss_status nss_getkey(uint32_t reqtype, void *fn, void *key, void *res, char *buf, size_t n, int *ret)
 {
 	nss_getgrnam_r fn_grnam;
 	nss_getgrgid_r fn_grgid;
@@ -315,11 +315,18 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 					errno = ENOMEM;
 					return -1;
 				}
+				/* memory growth factor is 1.5x.
+				 * to avoid overshooting SIZE_MAX and overflowing,
+				 * we use the check below: buf_len > (2/3) * SIZE_MAX */
 				if(buf_len > SIZE_MAX - buf_len/2) {
 					new_len = SIZE_MAX;
 				} else {
+					/* buf_len * 1.5 */
 					new_len = buf_len + buf_len/2;
 				}
+				/* TODO: doesn't need to be a realloc,
+				 * since we don't need to copy the memory;
+				 * evaluate if it's better or worse than malloc+free */
 				new_buf = realloc(buf, new_len);
 				if(!new_buf) {
 					free(buf);
