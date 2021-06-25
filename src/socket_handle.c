@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <limits.h>
 #include <assert.h>
+#include <stdbool.h>
 
 #include "util.h"
 #include "nss.h"
@@ -269,31 +270,31 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 	char *buf = 0;
 	size_t buf_len = 0;
 	long tmp;
+	bool using_passwd;
 
-	switch(reqtype) {
-	case GETPWBYNAME: case GETPWBYUID:
+	if(ISPWREQ(reqtype)) {
+		using_passwd = true;
 		l = list_head(&passwd_mods);
 		tmp = sysconf(_SC_GETPW_R_SIZE_MAX);
 		if(tmp < 0) buf_len = 4096;
 		else buf_len = tmp;
 		buf = malloc(buf_len);
 		if(!buf) return -1;
-		break;
-	case GETGRBYNAME: case GETGRBYGID: case GETINITGR:
+	} else {
+		using_passwd = false;
 		l = list_head(&group_mods);
 		tmp = sysconf(_SC_GETGR_R_SIZE_MAX);
 		if(tmp < 0) buf_len = 4096;
 		else buf_len = tmp;
 		buf = malloc(buf_len);
 		if(!buf) return -1;
-		break;
 	}
 	for(; l; l = list_next(l)) {
 		int ret;
 		int act;
 		enum nss_status status;
 		action *on_status;
-		if(reqtype == GETPWBYNAME || reqtype == GETPWBYUID) {
+		if(using_passwd) {
 			mod_passwd = list_ref(l, struct mod_passwd, link);
 			mod_group = 0;
 		} else {
@@ -333,7 +334,7 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 			}
 		} while(status == NSS_STATUS_TRYAGAIN && ret == ERANGE);
 
-		on_status = mod_passwd ? mod_passwd->on_status : mod_group->on_status;
+		on_status = using_passwd ? mod_passwd->on_status : mod_group->on_status;
 		act = on_status[
 			status == NSS_STATUS_TRYAGAIN ? STS_TRYAGAIN :
 			status == NSS_STATUS_UNAVAIL ? STS_UNAVAIL :
