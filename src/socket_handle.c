@@ -21,6 +21,10 @@
 #include "modules.h"
 #include "list.h"
 
+/* might be too large as an initial value;
+ * studying a better minimum buffer size could improve memory usage */
+#define BUF_LEN_DEFAULT 4096
+
 static int return_result(int fd, int swap, uint32_t reqtype, void *key);
 
 struct pthread_args {
@@ -57,10 +61,18 @@ static int strtouid(const char *restrict buf, uint32_t *id)
 	return 0;
 }
 
+static size_t buf_len_passwd, buf_len_group;
 static sem_t sem;
 
 int init_socket_handling(void)
 {
+	/* temporary variable needs to be signed */
+	long tmp;
+	tmp = sysconf(_SC_GETPW_R_SIZE_MAX);
+	buf_len_passwd = (tmp > 0) ? tmp : BUF_LEN_DEFAULT;
+	tmp = sysconf(_SC_GETGR_R_SIZE_MAX);
+	buf_len_group = (tmp > 0) ? tmp : BUF_LEN_DEFAULT;
+
 	return sem_init(&sem, 0, 0);
 }
 
