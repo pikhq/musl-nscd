@@ -21,9 +21,9 @@
 #include "modules.h"
 #include "list.h"
 
-/* might be too large as an initial value;
- * studying a better minimum buffer size could improve memory usage */
-#define BUF_LEN_DEFAULT 4096
+/* glibc's NSS_BUFLEN_PASSWD (from pwd/pwd.h) and NSS_BUFLEN_GROUP (from grp/grp.h)
+ * are set to 1024 and consider it a reasonable default */
+#define BUF_LEN_DEFAULT 1024
 
 static int return_result(int fd, int swap, uint32_t reqtype, void *key);
 
