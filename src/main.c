@@ -122,6 +122,14 @@ int main(int argc, char **argv)
 		service_l = list_head(&entry->services);
 		while(service_l) {
 			service = list_ref(service_l, struct service, link);
+
+			for(size_t i = 0; i < 4; i++) {
+				/* TODO: implement ACT_MERGE */
+				if(service->on_status[i] == ACT_MERGE) {
+					die_fmt("service '%s' is configured with a merge action in '%s', this is unsupported", service->service, config_path);
+				}
+			}
+
 			if(entry->database == DB_PASSWD) {
 				void *dll, *fn;
 				struct mod_passwd *mod;
