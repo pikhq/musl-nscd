@@ -305,7 +305,7 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 		if(!buf) return -1;
 	}
 	for(; l; l = list_next(l)) {
-		int ret;
+		int ret = 0;
 		int act;
 		enum nss_status status;
 		action *on_status;
