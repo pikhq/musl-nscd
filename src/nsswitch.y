@@ -7,7 +7,7 @@
 
 list_t parsed_output;
 
-int yyerror(const char*);
+void yyerror(const char*);
 
 static const action default_actions[] = {
 	ACT_RETURN,
@@ -126,7 +126,7 @@ list:
 
 %%
 
-int yyerror(const char *s)
+void yyerror(const char *s)
 {
 	fprintf(stderr, "%s\n", s);
 }
