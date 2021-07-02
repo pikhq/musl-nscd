@@ -245,7 +245,11 @@ static enum nss_status nss_getkey(uint32_t reqtype, struct mod_passwd *mod_passw
 		initgroups_res = res;
 		initgroups_res->end = 0;
 		initgroups_res->alloc = INITGR_ALLOC + 1;
-		initgroups_res->grps = (gid_t*)malloc(sizeof(gid_t) * initgroups_res->alloc);
+		initgroups_res->grps = malloc(sizeof(gid_t) * initgroups_res->alloc);
+		if(!initgroups_res->grps) {
+			*ret = errno;
+			return NSS_STATUS_TRYAGAIN;
+		}
 		retval = mod_group->nss_initgroups_dyn((char*)key, (gid_t)-1, &(initgroups_res->end), &(initgroups_res->alloc), &(initgroups_res->grps), UINT32_MAX, ret);
 		break;
 	}
