@@ -340,7 +340,7 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 			status == NSS_STATUS_UNAVAIL ? STS_UNAVAIL :
 			status == NSS_STATUS_NOTFOUND ? STS_NOTFOUND :
 			STS_SUCCESS];
-		if(act == ACT_RETURN || act == ACT_MERGE) {
+		if(act == ACT_RETURN) {
 			int err;
 			if(mod_passwd)
 				err = write_pwd(fd, swap, status == NSS_STATUS_SUCCESS ? &res.p : 0);
