@@ -180,9 +180,8 @@ void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 			goto cleanup_fd;
 		}
 
-		if(return_result(n, swap, buf[REQTYPE], key)) goto cleanup_mem;
-		close(n);
-		continue;
+		/* if return_result fails for any reason, we will just close the socket */
+		return_result(n, swap, buf[REQTYPE], key);
 
 cleanup_mem:
 		errno_stash = errno;
