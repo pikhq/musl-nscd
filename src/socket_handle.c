@@ -24,6 +24,9 @@
 /* glibc's NSS_BUFLEN_PASSWD (from pwd/pwd.h) and NSS_BUFLEN_GROUP (from grp/grp.h)
  * are set to 1024 and consider it a reasonable default */
 #define BUF_LEN_DEFAULT 1024
+/* NGROUPS_MAX value for musl as of 1.2.2, might change
+ * to keep up with the kernel definition, so we define our own */
+#define INITGR_ALLOC 32
 
 static int return_result(int fd, int swap, uint32_t reqtype, void *key);
 
@@ -241,7 +244,7 @@ static enum nss_status nss_getkey(uint32_t reqtype, struct mod_passwd *mod_passw
 	case GETINITGR:
 		initgroups_res = res;
 		initgroups_res->end = 0;
-		initgroups_res->alloc = NGROUPS_MAX + 1;
+		initgroups_res->alloc = INITGR_ALLOC + 1;
 		initgroups_res->grps = (gid_t*)malloc(sizeof(gid_t) * initgroups_res->alloc);
 		retval = mod_group->nss_initgroups_dyn((char*)key, (gid_t)-1, &(initgroups_res->end), &(initgroups_res->alloc), &(initgroups_res->grps), UINT32_MAX, ret);
 		break;
