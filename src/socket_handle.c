@@ -100,7 +100,6 @@ void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 		char idbuf[11];
 		uint32_t id;
 		void *key;
-		void *result;
 		int swap = 0;
 
 		sem_post(&sem);
