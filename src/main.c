@@ -117,7 +117,6 @@ int main(int argc, char **argv)
 	while(entry_l) {
 		struct entry *entry = list_ref(entry_l, struct entry, link);
 		struct service *service;
-		char *buf, *fnname;
 
 		service_l = list_head(&entry->services);
 		while(service_l) {
@@ -131,7 +130,7 @@ int main(int argc, char **argv)
 			}
 
 			if(entry->database == DB_PASSWD) {
-				void *dll, *fn;
+				void *dll;
 				struct mod_passwd *mod;
 				mod = malloc(sizeof(*mod));
 				if(!mod) die();
@@ -146,7 +145,7 @@ int main(int argc, char **argv)
 
 				list_push_back(&passwd_mods, &mod->link);
 			} else if(entry->database == DB_GROUP) {
-				void *dll, *fn;
+				void *dll;
 				struct mod_group *mod;
 				mod = malloc(sizeof(*mod));
 				if(!mod) die();
