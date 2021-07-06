@@ -275,8 +275,6 @@ tryldlib LDLIBS_AUTO -ldl "#include <dlfcn.h>" "dlclose(0);"
 # Try to get a conforming C99 environment
 #
 tryflag CFLAGS_C99 -std=c99
-tryflag CFLAGS_C99 -fexcess-precision=standard \
-|| { test "$ARCH" = i386 && tryflag CFLAGS_C99FSE -ffloat-store ; }
 
 #
 # Enable debugging if requessted.
@@ -356,13 +354,8 @@ tryflag CFLAGS_AUTO -Werror=pointer-arith
 
 if test "x$warnings" = xyes ; then
 tryflag CFLAGS_AUTO -Wall
-tryflag CFLAGS_AUTO -Wno-parentheses
-tryflag CFLAGS_AUTO -Wno-uninitialized
-tryflag CFLAGS_AUTO -Wno-missing-braces
-tryflag CFLAGS_AUTO -Wno-unused-value
-tryflag CFLAGS_AUTO -Wno-unused-but-set-variable
-tryflag CFLAGS_AUTO -Wno-unknown-pragmas
-tryflag CFLAGS_AUTO -Wno-pointer-to-int-cast
+tryflag CFLAGS_AUTO -Wextra
+tryflag CFLAGS_AUTO -Wno-unused-parameter
 fi
 
 # Omit empty sections from unreferenced functions or data

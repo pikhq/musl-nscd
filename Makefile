@@ -87,7 +87,7 @@ obj/%.tab.c: $(srcdir)/dist/%.tab.c
 endif
 
 obj/nscd: $(OBJS)
-	$(CC) $(LDFLAGS_ALL) $^ $(LDLIBS) -o $@
+	$(CC) $(CFLAGS_ALL) $(LDFLAGS_ALL) $^ $(LDLIBS) -o $@
 
 obj/test/%: $(srcdir)/%.c
 	$(CC) $(CFLAGS_ALL) -DTEST $(LDFLAGS_ALL) $< $(LDLIBS) -o $@ >/dev/null 2>&1 || cat </dev/null >$@
