@@ -447,15 +447,11 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 		FREE_ALLOC();
 	} while(l);
 
-	if(!l) {
-		switch(reqtype) {
-		case GETPWBYNAME: case GETPWBYUID:
-			return write_pwd(fd, swap, 0) > 0 ? 0 : -1;
-		case GETGRBYNAME: case GETGRBYGID:
-			return write_grp(fd, swap, 0) > 0 ? 0 : -1;
-		case GETINITGR:
-			return write_groups(fd, swap, 0, 0) > 0 ? 0 : -1;
-		}
-	}
-
+	/* if everything else errored out, we send an empty message */
+	if(ISPWREQ(reqtype))
+		return write_pwd(fd, swap, 0) > 0 ? 0 : -1;
+	else if(ISGRPREQ(reqtype))
+		return write_grp(fd, swap, 0) > 0 ? 0 : -1;
+	else
+		return write_groups(fd, swap, 0, 0) > 0 ? 0 : -1;
 }
