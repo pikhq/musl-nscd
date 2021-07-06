@@ -117,14 +117,48 @@ int cache_passwd_add(struct passwd *p, char *b)
 	#include "cache_add.h"
 }
 
+struct group_result {
+	struct group g;
+	char *b;
+	/* for validation */
+	time_t t;
+};
+struct group_cache {
+	pthread_rwlock_t lock;
+	struct group_result *res;
+	size_t len, size;
+};
+
+static struct group_cache group_cache =
+	{ .lock = PTHREAD_RWLOCK_INITIALIZER, .size = CACHE_INITIAL_ENTRIES };
+
 enum nss_status cache_getgrnam_r(const char *name, struct group *g, char *buf, size_t buf_len, int *err)
 {
-	return NSS_STATUS_NOTFOUND;
+	#define CACHE group_cache
+	#define RESULT_TYPE group_result
+	#define COMPARISON() (strcmp(res->g.gr_name, name) == 0)
+	#define ARGUMENT g
+	#include "cache_query.h"
 }
 
 enum nss_status cache_getgrgid_r(gid_t id, struct group *g, char *buf, size_t buf_len, int *err)
 {
-	return NSS_STATUS_NOTFOUND;
+	#define CACHE group_cache
+	#define RESULT_TYPE group_result
+	#define COMPARISON() (res->g.gr_gid == id)
+	#define ARGUMENT g
+	#include "cache_query.h"
+}
+
+/* this function copies the group struct p points to and
+ * takes ownership of the buffer b points to */
+int cache_group_add(struct group *g, char *b)
+{
+	#define CACHE group_cache
+	#define RESULT_TYPE group_result
+	#define COMPARISON() (res->g.gr_gid == g->gr_gid)
+	#define ARGUMENT g
+	#include "cache_add.h"
 }
 
 enum nss_status cache_initgroups_dyn(const char *name, gid_t id, long *end, long *alloc, gid_t **grps, long maxn, int *err)
@@ -143,6 +177,7 @@ int init_caches(void)
 {
 	#define MALLOC_CACHE(cache) do{ if(!(cache.res = malloc(cache.size * sizeof(*cache.res)))) return -1; }while(0)
 	MALLOC_CACHE(passwd_cache);
+	MALLOC_CACHE(group_cache);
 
 	cache = 1;
 	return 0;

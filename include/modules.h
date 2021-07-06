@@ -36,5 +36,6 @@ extern struct mod_group cache_modg;
 
 int init_caches(void);
 int cache_passwd_add(struct passwd *, char *);
+int cache_group_add(struct group *, char *);
 
 #endif
