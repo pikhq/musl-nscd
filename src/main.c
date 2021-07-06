@@ -77,14 +77,14 @@ int main(int argc, char **argv)
 	char *socket_path = "/var/run/nscd/socket";
 	char *config_path = "/etc/nsswitch.conf";
 	char *pid_path = 0;
-	bool daemonize = false;
+	bool daemonize = false, cache = false;
 	int c;
 
 	signal(SIGPIPE, SIG_IGN);
 
 	init_program_invocation_name(argv[0]);
 
-	while((c = getopt(argc, argv, "c:s:p:d")) != -1) switch(c) {
+	while((c = getopt(argc, argv, "c:s:p:dC")) != -1) switch(c) {
 	case 'c':
 		config_path = optarg;
 		break;
@@ -96,6 +96,9 @@ int main(int argc, char **argv)
 		break;
 	case 'd':
 		daemonize = true;
+		break;
+	case 'C':
+		cache = true;
 		break;
 	default:
 		return 1;
@@ -112,6 +115,10 @@ int main(int argc, char **argv)
 	fclose(yyin);
 
 	link_t *entry_l, *service_l;
+
+	if(cache) {
+		if(init_caches()) die();
+	}
 
 	if (init_socket_handling() < 0) die();
 

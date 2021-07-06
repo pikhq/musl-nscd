@@ -31,4 +31,9 @@ struct mod_passwd {
 extern list_t passwd_mods;
 extern list_t group_mods;
 
+extern struct mod_passwd cache_modp;
+extern struct mod_group cache_modg;
+
+int init_caches(void);
+
 #endif
