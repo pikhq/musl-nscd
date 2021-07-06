@@ -5,7 +5,7 @@ int main()
 {
 	struct group grp = {};
 	char *passwd;
-	passwd = grp.grp_passwd;
+	passwd = grp.gr_passwd;
 }
 #else
 typedef int x;
