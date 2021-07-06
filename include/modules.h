@@ -34,8 +34,15 @@ extern list_t group_mods;
 extern struct mod_passwd cache_modp;
 extern struct mod_group cache_modg;
 
+struct initgroups_res {
+	long end;
+	long alloc;
+	gid_t *grps;
+};
+
 int init_caches(void);
 int cache_passwd_add(struct passwd *, char *);
 int cache_group_add(struct group *, char *);
+int cache_initgroups_add(struct initgroups_res *, const char *);
 
 #endif

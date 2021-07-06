@@ -212,12 +212,6 @@ end:
 
 }
 
-struct initgroups_res {
-	long end;
-	long alloc;
-	gid_t *grps;
-};
-
 static enum nss_status nss_getkey(uint32_t reqtype, struct mod_passwd *mod_passwd, struct mod_group *mod_group, void *key, void *res, char *buf, size_t n, int *ret)
 {
 	int retval = NSS_STATUS_UNAVAIL;
@@ -439,7 +433,10 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 				} else if(ISGRPREQ(reqtype)) {
 					cache_group_add(&res.g, buf);
 					buf = 0;
-				} else { }
+				} else {
+					cache_initgroups_add(&res.l, key);
+					res.l.grps = 0;
+				}
 			}
 			/* we have to free resources for the case when status isn't SUCCESS */
 			FREE_ALLOC();
