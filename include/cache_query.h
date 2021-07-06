@@ -10,7 +10,12 @@ for(size_t i = 0; i < CACHE.len; i++) {
 		if(!validate_timestamp(res->t)) {
 			break;
 		}
-		memcpy(ARGUMENT, &CACHE.res[i].ARGUMENT, sizeof(*ARGUMENT));
+		*buf = malloc(res->l);
+		if(!*buf) {
+			*err = errno;
+			break;
+		}
+		COPY_FUNCTION(ARGUMENT, *buf, &CACHE.res[i].ARGUMENT, CACHE.res[i].b, res->l);
 		ret = NSS_STATUS_SUCCESS;
 		break;
 	}
@@ -24,3 +29,4 @@ return ret;
 #undef RESULT_TYPE
 #undef COMPARISON
 #undef ARGUMENT
+#undef COPY_FUNCTION

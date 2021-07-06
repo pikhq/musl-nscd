@@ -212,6 +212,25 @@ end:
 
 }
 
+static enum nss_status nss_getkey_cache(uint32_t reqtype, void *key, void *res, char **buf, int *ret)
+{
+	switch(reqtype) {
+	case GETPWBYNAME:
+		return cache_getpwnam_r((char*)key, (struct passwd*)res, buf, ret);
+	case GETPWBYUID:
+		return cache_getpwuid_r((uid_t)*(uint32_t*)key, (struct passwd*)res, buf, ret);
+	case GETGRBYNAME:
+		return cache_getgrnam_r((char*)key, (struct group*)res, buf, ret);
+	case GETGRBYGID:
+		return cache_getgrgid_r((gid_t)*(uint32_t*)key, (struct group*)res, buf, ret);
+	case GETINITGR:
+		return cache_initgroups_dyn((char*)key, res, ret);
+	}
+
+	/* for debugging purposes, is unreachable */
+	abort();
+}
+
 static enum nss_status nss_getkey(uint32_t reqtype, struct mod_passwd *mod_passwd, struct mod_group *mod_group, void *key, void *res, char *buf, size_t n, int *ret)
 {
 	int retval = NSS_STATUS_UNAVAIL;
@@ -271,82 +290,77 @@ static enum nss_status nss_getkey(uint32_t reqtype, struct mod_passwd *mod_passw
 
 int return_result(int fd, int swap, uint32_t reqtype, void *key)
 {
-	link_t *l;
+	union {
+		struct passwd p;
+		struct group g;
+		struct initgroups_res l;
+	} res;
+	enum nss_status status;
+	int ret = 0;
+	char *buf = 0;
 	/* true if using passwd_mods, false if using group_mods */
 	bool using_passwd;
-	/* control whether the initial cache run has happened already */
-	bool cache_run = true;
+
+	link_t *l;
+
+	/* macro to free the temporary resources allocated by return_result:
+	 * getpw* and getgr* requests use buf,
+	 * while initgroups uses the array in res.l.grps */
+	#define FREE_ALLOC() \
+		do{ if(ISPWREQ(reqtype)||ISGRPREQ(reqtype)) free(buf); else free(res.l.grps); } while(0)
 
 	if(ISPWREQ(reqtype)) {
 		using_passwd = true;
+		l = list_head(&passwd_mods);
 	} else {
 		using_passwd = false;
+		l = list_head(&group_mods);
 	}
-	do {
-		union {
-			struct passwd p;
-			struct group g;
-			struct initgroups_res l;
-		} res;
-		int ret = 0;
+
+	memset(&res, 0, sizeof res);
+	if((status = nss_getkey_cache(reqtype, key, &res, &buf, &ret)) == NSS_STATUS_SUCCESS) {
+		int err;
+		if(ISPWREQ(reqtype)) {
+			err = write_pwd(fd, swap, &res.p);
+		} else if(ISGRPREQ(reqtype)) {
+			err = write_grp(fd, swap, &res.g);
+		} else {
+			err = write_groups(fd, swap, res.l.end, res.l.grps);
+		}
+		/* functions only allocate if successful */
+		FREE_ALLOC();
+		return err;
+	}
+
+	for(; l; l = list_next(l)) {
 		int act;
-		enum nss_status status;
 		action *on_status;
 		struct mod_group *mod_group;
 		struct mod_passwd *mod_passwd;
-		char *buf = 0;
 		size_t buf_len = 0;
-		/* true during the cache run;
-		 * needs to exist because cache_run is set to false early on */
-		bool using_cache = false;
 
-		/* macro to free the temporary resources allocated by return_result:
-		 * getpw* and getgr* requests use buf,
-		 * while initgroups uses the array in res.l.grps */
-		#define FREE_ALLOC() \
-			do{ if(ISPWREQ(reqtype)||ISGRPREQ(reqtype)) free(buf); else free(res.l.grps); } while(0)
+		/* initialize same as above */
+		ret = 0;
+		buf = 0;
 
-		if (cache_run) {
-			using_cache = true;
-			/* the cache module is the first to run */
-			cache_run = false;
-			mod_passwd = &cache_modp;
-			mod_group = &cache_modg;
-
-			/* we ready the list head for the next iteration of the loop */
-			if(using_passwd) {
-				l = list_head(&passwd_mods);
-			} else {
-				l = list_head(&group_mods);
-			}
+		if(using_passwd) {
+			mod_passwd = list_ref(l, struct mod_passwd, link);
+			mod_group = 0;
 		} else {
-			/* all iterations after the first one will run the code here */
-			if(using_passwd) {
-				mod_passwd = list_ref(l, struct mod_passwd, link);
-				mod_group = 0;
-			} else {
-				mod_group = list_ref(l, struct mod_group, link);
-				mod_passwd = 0;
-			}
-			/* if it's 0, we will exit the loop after trying the current
-			 * mod_passwd or mod_group */
-			l = list_next(l);
+			mod_group = list_ref(l, struct mod_group, link);
+			mod_passwd = 0;
+		}
 
-			/* GETINITGR doesn't use buf */
-			if(ISPWREQ(reqtype) || ISGRPREQ(reqtype)) {
-				if(ISPWREQ(reqtype)) {
-					buf_len = buf_len_passwd;
-				} else if(ISGRPREQ(reqtype)) {
-					buf_len = buf_len_group;
-				}
-
-				/* the first run after the cache one will allocate the buffer used for
-				 * struct group and struct passwd */
-				if(!buf) {
-					buf = malloc(buf_len);
-					if(!buf) return -1;
-				}
+		/* GETINITGR doesn't use buf */
+		if(ISPWREQ(reqtype) || ISGRPREQ(reqtype)) {
+			if(ISPWREQ(reqtype)) {
+				buf_len = buf_len_passwd;
+			} else if(ISGRPREQ(reqtype)) {
+				buf_len = buf_len_group;
 			}
+
+			buf = malloc(buf_len);
+			if(!buf) return -1;
 		}
 
 		do {
@@ -423,15 +437,15 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 				err = 0;
 
 			/* this entry wasn't in cache when we tried! */
-			if(!using_cache && status == NSS_STATUS_SUCCESS) {
+			if(status == NSS_STATUS_SUCCESS) {
 				/* we null buf here when it's given to a cache_*_add functions,
 				 * since the cache function takes ownership of it.
 				 * this way, the free() call below will be a no op */
 				if(ISPWREQ(reqtype)) {
-					cache_passwd_add(&res.p, buf);
+					cache_passwd_add(&res.p, buf, buf_len);
 					buf = 0;
 				} else if(ISGRPREQ(reqtype)) {
-					cache_group_add(&res.g, buf);
+					cache_group_add(&res.g, buf, buf_len);
 					buf = 0;
 				} else {
 					cache_initgroups_add(&res.l, key);
