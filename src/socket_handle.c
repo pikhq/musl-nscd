@@ -14,6 +14,7 @@
 #include <assert.h>
 #include <stdbool.h>
 
+#include "config.h"
 #include "util.h"
 #include "nss.h"
 #include "nscd.h"
