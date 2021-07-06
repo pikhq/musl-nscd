@@ -436,8 +436,10 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 				if(ISPWREQ(reqtype)) {
 					cache_passwd_add(&res.p, buf);
 					buf = 0;
-				} else if(ISGRPREQ(reqtype)) { }
-				else { }
+				} else if(ISGRPREQ(reqtype)) {
+					cache_group_add(&res.g, buf);
+					buf = 0;
+				} else { }
 			}
 			/* we have to free resources for the case when status isn't SUCCESS */
 			FREE_ALLOC();
