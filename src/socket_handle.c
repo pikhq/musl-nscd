@@ -433,8 +433,10 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 				/* we null buf here when it's given to a cache_*_add functions,
 				 * since the cache function takes ownership of it.
 				 * this way, the free() call below will be a no op */
-				if(ISPWREQ(reqtype)) { }
-				else if(ISGRPREQ(reqtype)) { }
+				if(ISPWREQ(reqtype)) {
+					cache_passwd_add(&res.p, buf);
+					buf = 0;
+				} else if(ISGRPREQ(reqtype)) { }
 				else { }
 			}
 			/* we have to free resources for the case when status isn't SUCCESS */
