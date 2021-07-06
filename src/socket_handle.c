@@ -277,48 +277,84 @@ static enum nss_status nss_getkey(uint32_t reqtype, struct mod_passwd *mod_passw
 
 int return_result(int fd, int swap, uint32_t reqtype, void *key)
 {
-	union {
-		struct passwd p;
-		struct group g;
-		struct initgroups_res l;
-	} res;
 	link_t *l;
-	struct mod_group *mod_group;
-	struct mod_passwd *mod_passwd;
-	char *buf = 0;
-	size_t buf_len = 0;
-	long tmp;
+	/* true if using passwd_mods, false if using group_mods */
 	bool using_passwd;
+	/* control whether the initial cache run has happened already */
+	bool cache_run = true;
 
 	if(ISPWREQ(reqtype)) {
 		using_passwd = true;
-		l = list_head(&passwd_mods);
-		tmp = sysconf(_SC_GETPW_R_SIZE_MAX);
-		if(tmp < 0) buf_len = 4096;
-		else buf_len = tmp;
-		buf = malloc(buf_len);
-		if(!buf) return -1;
 	} else {
 		using_passwd = false;
-		l = list_head(&group_mods);
-		tmp = sysconf(_SC_GETGR_R_SIZE_MAX);
-		if(tmp < 0) buf_len = 4096;
-		else buf_len = tmp;
-		buf = malloc(buf_len);
-		if(!buf) return -1;
 	}
-	for(; l; l = list_next(l)) {
+	do {
+		union {
+			struct passwd p;
+			struct group g;
+			struct initgroups_res l;
+		} res;
 		int ret = 0;
 		int act;
 		enum nss_status status;
 		action *on_status;
-		if(using_passwd) {
-			mod_passwd = list_ref(l, struct mod_passwd, link);
-			mod_group = 0;
+		struct mod_group *mod_group;
+		struct mod_passwd *mod_passwd;
+		char *buf = 0;
+		size_t buf_len = 0;
+		/* true during the cache run;
+		 * needs to exist because cache_run is set to false early on */
+		bool using_cache = false;
+
+		/* macro to free the temporary resources allocated by return_result:
+		 * getpw* and getgr* requests use buf,
+		 * while initgroups uses the array in res.l.grps */
+		#define FREE_ALLOC() \
+			do{ if(ISPWREQ(reqtype)||ISGRPREQ(reqtype)) free(buf); else free(res.l.grps); } while(0)
+
+		if (cache_run) {
+			using_cache = true;
+			/* the cache module is the first to run */
+			cache_run = false;
+			mod_passwd = &cache_modp;
+			mod_group = &cache_modg;
+
+			/* we ready the list head for the next iteration of the loop */
+			if(using_passwd) {
+				l = list_head(&passwd_mods);
+			} else {
+				l = list_head(&group_mods);
+			}
 		} else {
-			mod_group = list_ref(l, struct mod_group, link);
-			mod_passwd = 0;
+			/* all iterations after the first one will run the code here */
+			if(using_passwd) {
+				mod_passwd = list_ref(l, struct mod_passwd, link);
+				mod_group = 0;
+			} else {
+				mod_group = list_ref(l, struct mod_group, link);
+				mod_passwd = 0;
+			}
+			/* if it's 0, we will exit the loop after trying the current
+			 * mod_passwd or mod_group */
+			l = list_next(l);
+
+			/* GETINITGR doesn't use buf */
+			if(ISPWREQ(reqtype) || ISGRPREQ(reqtype)) {
+				if(ISPWREQ(reqtype)) {
+					buf_len = buf_len_passwd;
+				} else if(ISGRPREQ(reqtype)) {
+					buf_len = buf_len_group;
+				}
+
+				/* the first run after the cache one will allocate the buffer used for
+				 * struct group and struct passwd */
+				if(!buf) {
+					buf = malloc(buf_len);
+					if(!buf) return -1;
+				}
+			}
 		}
+
 		do {
 			memset(&res, 0, sizeof(res));
 			status = nss_getkey(reqtype, mod_passwd, mod_group, key, &res, buf, buf_len, &ret);
@@ -358,36 +394,60 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 			status == NSS_STATUS_UNAVAIL ? STS_UNAVAIL :
 			status == NSS_STATUS_NOTFOUND ? STS_NOTFOUND :
 			STS_SUCCESS];
+
 		if(act == ACT_RETURN) {
 			int err;
-			if(mod_passwd)
+			/* the write_* functions also validate the entry, and will return -2
+			 * in case it's invalid (basically, if it can't be sent via the nscd protocol) */
+			if(ISPWREQ(reqtype)) {
 				err = write_pwd(fd, swap, status == NSS_STATUS_SUCCESS ? &res.p : 0);
-			else if(reqtype != GETINITGR)
+			} else if(ISGRPREQ(reqtype)) {
 				err = write_grp(fd, swap, status == NSS_STATUS_SUCCESS ? &res.g : 0);
-			else {
+			} else {
 				err = write_groups(fd, swap, status == NSS_STATUS_SUCCESS ? res.l.end : 0, status == NSS_STATUS_SUCCESS ? res.l.grps : 0);
-				free(res.l.grps);
 			}
-			if(err == -1) {
-				free(buf);
-				return -1;
-			}
+
 			if(err == -2) {
+				/* the buffers will no longer be used */
+				FREE_ALLOC();
+				/* we treat an invalid entry as the service being unavailable */
 				if(on_status[STS_UNAVAIL] == ACT_RETURN) {
-					free(buf);
-					if(mod_passwd)
+					if(ISPWREQ(reqtype))
 						return write_pwd(fd, swap, 0) > 0 ? 0 : -1;
-					else if(reqtype != GETINITGR)
+					else if(ISGRPREQ(reqtype))
 						return write_grp(fd, swap, 0) > 0 ? 0 : -1;
 					else
 						return write_groups(fd, swap, 0, 0) > 0 ? 0 : -1;
 				}
+				/* for actions other than ACT_RETURN we will try other modules */
 				continue;
 			}
+
+			/* if the write was successful, we will return 0,
+			 * otherwise, we will return -1 */
+			if(err > 0)
+				err = 0;
+
+			/* this entry wasn't in cache when we tried! */
+			if(!using_cache && status == NSS_STATUS_SUCCESS) {
+				/* we null buf here when it's given to a cache_*_add functions,
+				 * since the cache function takes ownership of it.
+				 * this way, the free() call below will be a no op */
+				if(ISPWREQ(reqtype)) { }
+				else if(ISGRPREQ(reqtype)) { }
+				else { }
+			}
+			/* we have to free resources for the case when status isn't SUCCESS */
+			FREE_ALLOC();
+
+			return err;
 		}
-	}
+
+		/* we have to free resources for the case when action isn't RETURN */
+		FREE_ALLOC();
+	} while(l);
+
 	if(!l) {
-		free(buf);
 		switch(reqtype) {
 		case GETPWBYNAME: case GETPWBYUID:
 			return write_pwd(fd, swap, 0) > 0 ? 0 : -1;
