@@ -161,9 +161,139 @@ int cache_group_add(struct group *g, char *b)
 	#include "cache_add.h"
 }
 
+struct initgroups_result {
+	struct initgroups_res g;
+	char *name;
+	/* for validation */
+	time_t t;
+};
+struct initgroups_cache {
+	pthread_rwlock_t lock;
+	struct initgroups_result *res;
+	size_t len, size;
+};
+
+static struct initgroups_cache initgroups_cache =
+	{ .lock = PTHREAD_RWLOCK_INITIALIZER, .size = CACHE_INITIAL_ENTRIES };
+
 enum nss_status cache_initgroups_dyn(const char *name, gid_t id, long *end, long *alloc, gid_t **grps, long maxn, int *err)
 {
-	return NSS_STATUS_NOTFOUND;
+	IS_CACHING
+
+	enum nss_status ret = NSS_STATUS_NOTFOUND;
+
+	pthread_rwlock_rdlock(&initgroups_cache.lock);
+
+	for(size_t i = 0; i < initgroups_cache.len; i++) {
+		struct initgroups_result *res = &initgroups_cache.res[i];
+		if (strcmp(res->name, name) == 0) {
+			if(!validate_timestamp(res->t)) {
+				break;
+			}
+
+			/* to simplify memory management, we use either the provided buffer or
+			 * realloc a new one. It would be ideal to use the cache buffer without
+			 * copying or allocating memory, but that significantly complicates
+			 * the return_result code */
+
+			if(res->g.end > *alloc) {
+				void *tmp = realloc(*grps, res->g.end * sizeof(gid_t));
+				/* allow a fallback to NOTFOUND, though it's unlikely that the nss
+				 * backend will succeed in the allocation either */
+				if(!tmp) {
+					*err = ENOMEM;
+					break;
+				}
+
+				*alloc = res->g.end;
+				*grps = tmp;
+			}
+			*end = res->g.end;
+			memcpy(*grps, res->g.grps, res->g.end * sizeof(gid_t));
+			ret = NSS_STATUS_SUCCESS;
+			break;
+		}
+	}
+
+	pthread_rwlock_unlock(&initgroups_cache.lock);
+	return ret;
+}
+
+/* see cache_add.h for comments on the implementation strategy */
+int cache_initgroups_add(struct initgroups_res *g, const char *name)
+{
+	IS_CACHING_FOR_WRITE(g->grps);
+
+	int ret = 0;
+	size_t i;
+	bool found_outdated = false;
+
+	pthread_rwlock_wrlock(&initgroups_cache.lock);
+
+	time_t oldest = initgroups_cache.len > 0 ? initgroups_cache.res[0].t : 0;
+	size_t oldest_i = 0;
+	bool found_invalid = false;
+
+	time_t now = monotonic_seconds();
+	for(i = 0; i < initgroups_cache.len; i++) {
+		struct initgroups_result *res = &initgroups_cache.res[i];
+
+		if(!compare_timestamps(res->t, now)) {
+			found_invalid = true;
+			if(res->t < oldest) {
+				oldest = res->t;
+				oldest_i = i;
+			}
+		}
+
+		if (strcmp(res->name, name) == 0) {
+			if(compare_timestamps(res->t, now)) {
+				goto cleanup;
+			}
+			found_outdated = true;
+			break;
+		}
+	}
+
+	/* if we are here, we are necessarily going to add something to the cache */
+	struct initgroups_result *res;
+	if(found_outdated) {
+		res = &initgroups_cache.res[i];
+		/* we need to free the underlying storage, but we reuse res->name */
+		free(res->g.grps);
+	} else {
+		char *namedup = strdup(name);
+		if (!namedup)
+			goto cleanup;
+
+		if(found_invalid) {
+			/* overwrite invalid entry */
+			i = oldest_i;
+			res = &initgroups_cache.res[i];
+			/* we need to free all the underlying storage */
+			free(res->name);
+			free(res->g.grps);
+		} else {
+			void *tmp_pointer = initgroups_cache.res;
+			if(!cache_increment_len(&initgroups_cache.len, &initgroups_cache.size, sizeof(*initgroups_cache.res), &tmp_pointer, &i)) {
+				free(namedup);
+				goto cleanup;
+			}
+			initgroups_cache.res = tmp_pointer;
+		}
+
+		res = &initgroups_cache.res[i];
+		res->name = namedup;
+	}
+	memcpy(&res->g, g, sizeof(*g));
+	res->t = now;
+	g->grps = 0;
+
+cleanup:
+	pthread_rwlock_unlock(&initgroups_cache.lock);
+	/* if insertion fails, we should free the buffer */
+	free(g->grps);
+	return ret;
 }
 
 #define CACHE_ON_STATUS {ACT_RETURN, ACT_CONTINUE, ACT_CONTINUE, ACT_CONTINUE}
@@ -178,6 +308,7 @@ int init_caches(void)
 	#define MALLOC_CACHE(cache) do{ if(!(cache.res = malloc(cache.size * sizeof(*cache.res)))) return -1; }while(0)
 	MALLOC_CACHE(passwd_cache);
 	MALLOC_CACHE(group_cache);
+	MALLOC_CACHE(initgroups_cache);
 
 	cache = 1;
 	return 0;
