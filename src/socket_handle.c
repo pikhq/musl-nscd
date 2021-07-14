@@ -30,7 +30,7 @@
  * to keep up with the kernel definition, so we define our own */
 #define INITGR_ALLOC 32
 
-#define MIN_SERV_THREAD 5
+#define MIN_SERV_THREAD 2
 
 static int return_result(int fd, int swap, uint32_t reqtype, void *key);
 
@@ -64,7 +64,7 @@ struct serv_thread {
 } static *serv_threads;
 
 /* number of server threads */
-static size_t serv_n = MIN_SERV_THREAD;
+static size_t serv_n;
 /* semaphore holding how many server threads are available to take a query */
 static sem_t listen_sem;
 
@@ -173,7 +173,7 @@ cleanup_fd:
 
 static size_t buf_len_passwd, buf_len_group;
 
-int init_socket_handling()
+int init_socket_handling(unsigned jobs)
 {
 	/* temporary variable needs to be signed */
 	long tmp;
@@ -184,6 +184,9 @@ int init_socket_handling()
 
 	l = newlocale(LC_ALL_MASK, "C", (locale_t)0);
 	if(!l) return -1;
+
+	/* keep the total of threads at jobs */
+	serv_n = (jobs > MIN_SERV_THREAD ? jobs : MIN_SERV_THREAD) - 1;
 
 	/* starts with all server threads available */
 	if(sem_init(&listen_sem, 0, serv_n) < 0) return -1;
