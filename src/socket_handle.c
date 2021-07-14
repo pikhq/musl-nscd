@@ -13,6 +13,7 @@
 #include <limits.h>
 #include <assert.h>
 #include <stdbool.h>
+#include <stdatomic.h>
 
 #include "config.h"
 #include "util.h"
@@ -29,20 +30,9 @@
  * to keep up with the kernel definition, so we define our own */
 #define INITGR_ALLOC 32
 
+#define MIN_SERV_THREAD 5
+
 static int return_result(int fd, int swap, uint32_t reqtype, void *key);
-
-struct pthread_args {
-	int fd;
-	locale_t l;
-};
-
-
-static void *start_thread(void *args)
-{
-	struct pthread_args *p = args;
-	socket_handle(p->fd, 5 * 60 * 1000, p->l, args);
-	return 0;
-}
 
 static int strtouid(const char *restrict buf, uint32_t *id)
 {
@@ -65,33 +55,24 @@ static int strtouid(const char *restrict buf, uint32_t *id)
 	return 0;
 }
 
-static size_t buf_len_passwd, buf_len_group;
-static sem_t sem;
+struct serv_thread {
+	pthread_t t;
+	sem_t s;
+	/* needs to be atomic because it might be scanned by the listen thread.
+	 * a value of -1 means the thread is available to take a new query */
+	atomic_int fd;
+} static *serv_threads;
 
-int init_socket_handling(void)
+/* number of server threads */
+static size_t serv_n = MIN_SERV_THREAD;
+/* semaphore holding how many server threads are available to take a query */
+static sem_t listen_sem;
+
+static locale_t l;
+
+static void *serv_thread(void *arg)
 {
-	/* temporary variable needs to be signed */
-	long tmp;
-	tmp = sysconf(_SC_GETPW_R_SIZE_MAX);
-	buf_len_passwd = (tmp > 0) ? tmp : BUF_LEN_DEFAULT;
-	tmp = sysconf(_SC_GETGR_R_SIZE_MAX);
-	buf_len_group = (tmp > 0) ? tmp : BUF_LEN_DEFAULT;
-
-	return sem_init(&sem, 0, 0);
-}
-
-void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
-{
-	struct pollfd pollfd;
-	struct pthread_args args;
-	pollfd.fd = fd;
-	pollfd.events = POLLIN;
-
-	if(timeout < 0) {
-		pthread_args = &args;
-		args.fd = fd;
-		args.l = l;
-	}
+	struct serv_thread *st = arg;
 
 	for(;;) {
 		int n;
@@ -103,36 +84,10 @@ void socket_handle(int fd, int timeout, locale_t l, void *pthread_args)
 		void *key;
 		int swap = 0;
 
-		sem_post(&sem);
-
-		n = poll(&pollfd, 1, timeout);
-		if(n < 0) {
-			if(errno == EINTR) continue;
-			syslog(LOG_ERR, "error in poll: %s", strerror_l(errno, l));
-			goto end;
-		}
-		if(n == 0) {
-			sem_trywait(&sem);
-			return;
-		}
-		n = accept(fd, 0, 0);
-		if(n < 0) {
-			if(errno == EINTR) continue;
-			syslog(LOG_ERR, "error in accept: %s", strerror_l(errno, l));
-			goto end;
-		}
-		sem_trywait(&sem);
-		if(sem_trywait(&sem) == -1) {
-			pthread_t thread;
-			if(pthread_create(&thread, 0, start_thread, pthread_args)) {
-				syslog(LOG_ERR, "error in pthread_create: %s", strerror_l(errno, l));
-			} else {
-				pthread_detach(thread);
-			}
-		} else {
-			sem_post(&sem);
-		}
-
+		/* wait for job to be posted to this thread */
+		sem_wait(&st->s);
+		/* capture fd to be used */
+		n = st->fd;
 
 		if(full_read(n, (char*)buf, sizeof buf) < 0) {
 			syslog(LOG_ERR, "error in read: %s", strerror_l(errno, l));
@@ -206,10 +161,84 @@ cleanup_fd:
 		errno_stash = errno;
 		close(n);
 		errno = errno_stash;
-end:
-		if(timeout > 0) return;
+
+		/* reset fd so listener thread knows this thread is available */
+		st->fd = -1;
+		/* track number of available threads */
+		sem_post(&listen_sem);
 	}
 
+	return 0;
+}
+
+static size_t buf_len_passwd, buf_len_group;
+
+int init_socket_handling()
+{
+	/* temporary variable needs to be signed */
+	long tmp;
+	tmp = sysconf(_SC_GETPW_R_SIZE_MAX);
+	buf_len_passwd = (tmp > 0) ? tmp : BUF_LEN_DEFAULT;
+	tmp = sysconf(_SC_GETGR_R_SIZE_MAX);
+	buf_len_group = (tmp > 0) ? tmp : BUF_LEN_DEFAULT;
+
+	l = newlocale(LC_ALL_MASK, "C", (locale_t)0);
+	if(!l) return -1;
+
+	/* starts with all server threads available */
+	if(sem_init(&listen_sem, 0, serv_n) < 0) return -1;
+
+	serv_threads = calloc(serv_n, sizeof(*serv_threads));
+	if(!serv_threads) return -1;
+	for(size_t i = 0; i < serv_n; i++) {
+		if(sem_init(&serv_threads[i].s, 0, 0) < 0) return -1;
+		if(pthread_create(&serv_threads[i].t, 0, serv_thread, serv_threads+i) < 0) return -1;
+		serv_threads[i].fd = -1;
+	}
+
+	return 0;
+}
+
+void socket_handle(int fd)
+{
+	struct pollfd pollfd;
+	pollfd.fd = fd;
+	pollfd.events = POLLIN;
+
+	for(;;) {
+		int n;
+
+		n = poll(&pollfd, 1, -1);
+		if(n < 0) {
+			if(errno == EINTR) continue;
+			syslog(LOG_ERR, "error in poll: %s", strerror_l(errno, l));
+			continue;
+		}
+		n = accept(fd, 0, 0);
+		if(n < 0) {
+			if(errno == EINTR) continue;
+			syslog(LOG_ERR, "error in accept: %s", strerror_l(errno, l));
+			continue;
+		}
+
+		/* wait for a server thread to be available */
+		do {
+			sem_wait(&listen_sem);
+		} while (errno == EINTR);
+
+		/* find the available server thread */
+		for(size_t i = 0; i < serv_n; i++) {
+			if(serv_threads[i].fd < 0) {
+				serv_threads[i].fd = n;
+				sem_post(&serv_threads[i].s);
+				n = -1;
+				break;
+			}
+		}
+
+		/* we will always have called one thread */
+		assert(n == -1);
+	}
 }
 
 static enum nss_status nss_getkey_cache(uint32_t reqtype, void *key, void *res, char **buf, int *ret)

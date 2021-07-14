@@ -211,8 +211,6 @@ int main(int argc, char **argv)
 	chmod(socket_path, 0666);
 
 	if(listen(fd, 100) < 0) die();
-	locale_t l = newlocale(LC_ALL_MASK, "C", (locale_t)0);
-	if(!l) die();
 
 	openlog("musl-nscd", 0
 #ifdef LOG_PERROR
@@ -257,5 +255,5 @@ int main(int argc, char **argv)
 	chdir("/");
 
 	if (init_socket_handling() < 0) die();
-	socket_handle(fd, -1, l, 0);
+	socket_handle(fd);
 }
