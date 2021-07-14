@@ -27,7 +27,7 @@ uint32_t swap32(uint32_t);
 int write_pwd(int, int, struct passwd*);
 int write_grp(int, int, struct group*);
 int write_groups(int, int, size_t, gid_t*);
-int init_socket_handling(void);
+int init_socket_handling(unsigned);
 void socket_handle(int);
 
 #endif
