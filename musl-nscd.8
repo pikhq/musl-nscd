@@ -1,0 +1,78 @@
+.Dd July 19, 2021
+.Dt MUSL-NSCD 8
+.Os
+.Sh NAME
+.Nm musl-nscd
+.Nd
+daemon that provides
+.Xr nss 5
+functionality to applications via the NSCD protocol, avoiding the need for them to load the modules themselves.
+It can also cache requests made to it
+.Sh SYNOPSIS
+.Nm nscd
+.Op Fl c Ar config
+.Op Fl s Ar socket
+.Op Fl C Ar cache_invalidation_time
+.Op Fl n Ar cache_maximum_entries
+.Op Fl j Ar threads
+.Op Fl d
+.Sh DESCRIPTION
+.Nm
+provides access to the
+.Xr passwd 5
+and
+.Xr group 5
+databases through standard libc interfaces.
+.Pp
+Unlike the GNU
+.Xr nscd 8
+implementation, there is only a positive cache for items found, and caching is optional.
+.Sh OPTIONS
+.Bl -tag -width x
+.It Fl c Ar config
+Specifies the path to the configuration file.
+By default,
+.Pa /etc/nsswitch.conf
+is used.
+The syntax is specified in
+.Xr nsswitch.conf 5 ,
+though the "merge" action is not supported.
+.It Fl s Ar socket
+Specifies the path to the socket where the daemon listens.
+By default,
+.Pa /var/run/nscd/socket
+is used.
+.It Fl C Ar cache_invalidation_time
+This option enables caching functionality: this reduces latency but increases memory consumption.
+This option takes the amount of seconds for which a result is valid as argument.
+Users should note that a stale entry will be treated as valid for the duration of the invalidation time.
+This means that any changes made to the authentication providers used by
+.Nm
+can take up to
+.Ar cache_invalidation_time
+seconds to be updated in
+.Nm ,
+and, therefore, in applications.
+A suggested value that will provide most of the performance benefits without being too long is 120 seconds (2 minutes).
+System administrators should set this to fit site-specific policies, or consider not enabling caching at all.
+.It Fl n Ar cache_maximum_entries
+This options specifies the maximum amount of entries allowed in the cache.
+This maximum is per cache, therefore specifying 100 entries means
+there will be 3 separate caches (for each supported query type)
+with at most 100 entries each.
+The default is 1000 entries.
+.It Fl j Ar threads
+Specifies the number of threads the daemon should use.
+More threads can reduce latency.
+.It Fl d
+This option makes it so
+.Nm
+daemonizes itself to the background.
+.El
+.Sh SEE ALSO
+.Xr nss 5 ,
+.Xr nsswitch.conf 5 ,
+.Xr nscd 8
+.Sh BUGS
+Bugs should be reported to
+.Lk https://github.com/pikhq/musl-nscd
