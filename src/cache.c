@@ -31,15 +31,10 @@ static time_t monotonic_seconds(void)
 	return res.tv_sec;
 }
 
+/* returns true if the timestamp is still valid */
 static bool compare_timestamps(time_t t, time_t now)
 {
 	return (now - t) < CACHE_INVALIDATION_TIME;
-}
-
-/* returns true if the timestamp is still valid */
-static bool validate_timestamp(time_t t)
-{
-	return compare_timestamps(t, monotonic_seconds());
 }
 
 /* increment len and store the index for that new member in index */
@@ -232,10 +227,11 @@ enum nss_status cache_initgroups_dyn(const char *name, struct initgroups_res *re
 
 	pthread_rwlock_rdlock(&initgroups_cache.lock);
 
+	time_t now = monotonic_seconds();
 	for(size_t i = 0; i < initgroups_cache.len; i++) {
 		struct initgroups_result *res = &initgroups_cache.res[i];
 		if (strcmp(res->name, name) == 0) {
-			if(!validate_timestamp(res->t)) {
+			if(!compare_timestamps(res->t, now)) {
 				break;
 			}
 
@@ -275,7 +271,9 @@ int cache_initgroups_add(struct initgroups_res *g, const char *name)
 	for(i = 0; i < initgroups_cache.len; i++) {
 		struct initgroups_result *res = &initgroups_cache.res[i];
 
-		if(!compare_timestamps(res->t, now)) {
+		bool comp = compare_timestamps(res->t, now);
+
+		if(!comp) {
 			found_invalid = true;
 			if(res->t < oldest) {
 				oldest = res->t;
@@ -284,7 +282,7 @@ int cache_initgroups_add(struct initgroups_res *g, const char *name)
 		}
 
 		if (strcmp(res->name, name) == 0) {
-			if(compare_timestamps(res->t, now)) {
+			if(comp) {
 				goto cleanup;
 			}
 			found_outdated = true;
