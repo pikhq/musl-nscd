@@ -20,9 +20,11 @@ time_t now = monotonic_seconds();
 for(i = 0; i < CACHE.len; i++) {
 	struct RESULT_TYPE *res = &CACHE.res[i];
 
+	bool comp = compare_timestamps(res->t, now);
+
 	/* look for invalid entry with lowest timestamp as a heuristic for
 	 * least-recently-used */
-	if(!compare_timestamps(res->t, now)) {
+	if(!comp) {
 		found_invalid = true;
 		if(res->t < oldest) {
 			oldest = res->t;
@@ -33,7 +35,7 @@ for(i = 0; i < CACHE.len; i++) {
 	/* since the ID is canonical, we only need to look for it to check for duplicates */
 	if (COMPARISON()) {
 		/* valid entry */
-		if(compare_timestamps(res->t, now)) {
+		if(comp) {
 			goto cleanup;
 		}
 		/* outdated entry, should be replaced */

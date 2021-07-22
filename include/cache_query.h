@@ -4,10 +4,11 @@ enum nss_status ret = NSS_STATUS_NOTFOUND;
 
 pthread_rwlock_rdlock(&CACHE.lock);
 
+time_t now = monotonic_seconds();
 for(size_t i = 0; i < CACHE.len; i++) {
 	struct RESULT_TYPE *res = &CACHE.res[i];
 	if (COMPARISON()) {
-		if(!validate_timestamp(res->t)) {
+		if(!compare_timestamps(res->t, now)) {
 			break;
 		}
 		*buf = malloc(res->l);
