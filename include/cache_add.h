@@ -74,6 +74,9 @@ if(found_outdated) {
 res->b = b;
 res->l = buf_len;
 res->t = now;
+#ifdef HASH_ARG
+res->h = hash(HASH_ARG);
+#endif
 b = 0;
 
 cleanup:
@@ -84,5 +87,6 @@ return ret;
 
 #undef CACHE
 #undef RESULT_TYPE
+#undef HASH_ARG
 #undef COMPARISON
 #undef ARGUMENT
