@@ -63,11 +63,11 @@ int write_pwd(int fd, int swap, struct passwd *pwd)
 
 	if(full_write(fd, (char*)head, sizeof head) < 0) return -1;
 
-	if(namelen) if(full_write(fd, name_fld, namelen) < 0) return -1;
-	if(passwdlen) if(full_write(fd, passwd_fld, passwdlen) < 0) return -1;
-	if(gecoslen) if(full_write(fd, gecos_fld, gecoslen) < 0) return -1;
-	if(dirlen) if(full_write(fd, dir_fld, dirlen) < 0) return -1;
-	if(shelllen) if(full_write(fd, shell_fld, shelllen) < 0) return -1;
+	if(full_write(fd, name_fld, namelen) < 0) return -1;
+	if(full_write(fd, passwd_fld, passwdlen) < 0) return -1;
+	if(full_write(fd, gecos_fld, gecoslen) < 0) return -1;
+	if(full_write(fd, dir_fld, dirlen) < 0) return -1;
+	if(full_write(fd, shell_fld, shelllen) < 0) return -1;
 	return 0;
 }
 
@@ -126,8 +126,8 @@ int write_grp(int fd, int swap, struct group *grp)
 		if(swap) swaplen = swap32(swaplen);
 		if(full_write(fd, (char*)&swaplen, sizeof(uint32_t)) < 0) return -1;
 	}
-	if(namelen) if(full_write(fd, name_fld, namelen) < 0) return -1;
-	if(passwdlen) if(full_write(fd, passwd_fld, passwdlen) < 0) return -1;
+	if(full_write(fd, name_fld, namelen) < 0) return -1;
+	if(full_write(fd, passwd_fld, passwdlen) < 0) return -1;
 	for(i = 0; grp->gr_mem[i]; i++) {
 		uint32_t len = strlen(grp->gr_mem[i]) + 1;
 		if(full_write(fd, grp->gr_mem[i], len) < 0) return -1;
