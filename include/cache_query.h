@@ -2,6 +2,10 @@ IS_CACHING
 
 enum nss_status ret = NSS_STATUS_NOTFOUND;
 
+#ifdef HASH_ARG
+uint32_t h = hash(HASH_ARG);
+#endif
+
 pthread_rwlock_rdlock(&CACHE.lock);
 
 time_t now = monotonic_seconds();
@@ -28,6 +32,7 @@ return ret;
 /* avoid polluting lines after this file is included */
 #undef CACHE
 #undef RESULT_TYPE
+#undef HASH_ARG
 #undef COMPARISON
 #undef ARGUMENT
 #undef COPY_FUNCTION
