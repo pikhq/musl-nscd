@@ -1,3 +1,19 @@
+/* This code is written this way in order to implement polimorphism: the struct
+ * passwd and struct group caches are implemented in exactly the same way, the
+ * only difference being the name of struct members and struct layout.
+ *
+ * The function to add values into the cache will #include this file in its
+ * body, after defining the necessary macros:
+ *   - CACHE: name of the cache for that struct
+ *   - RESULT_TYPE: the type of a result stored in the cache
+ *   - HASH_ARG: the argument that will be passed to the hashing function, if
+ *     any
+ *   - COMPARISON: the equality check to determine if the entry being added to
+ *     cache is listed in it already
+ *   - ARGUMENT: the name of the struct member holding the struct passwd or
+ *     struct group being used
+ */
+
 IS_CACHING_FOR_WRITE(b);
 
 int ret = 0;
