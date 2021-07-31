@@ -77,14 +77,15 @@ int main(int argc, char **argv)
 	char *socket_path = "/var/run/nscd/socket";
 	char *config_path = "/etc/nsswitch.conf";
 	char *pid_path = 0;
-	bool daemonize = false, cache = false;
+	bool daemonize = false;
+	unsigned cache_invalidation_time = 0, cache_max_entries = 1000;
 	int c;
 
 	signal(SIGPIPE, SIG_IGN);
 
 	init_program_invocation_name(argv[0]);
 
-	while((c = getopt(argc, argv, "c:s:p:dC")) != -1) switch(c) {
+	while((c = getopt(argc, argv, "c:s:p:C:n:d")) != -1) switch(c) {
 	case 'c':
 		config_path = optarg;
 		break;
@@ -98,7 +99,16 @@ int main(int argc, char **argv)
 		daemonize = true;
 		break;
 	case 'C':
-		cache = true;
+		cache_invalidation_time = atol(optarg);
+		if(cache_invalidation_time <= 0) {
+			die_fmt("invalid cache invalidation time: '%s'", optarg);
+		}
+		break;
+	case 'n':
+		cache_max_entries = atol(optarg);
+		if(cache_max_entries <= 0) {
+			die_fmt("invalid maximum amount of cache entries: '%s'", optarg);
+		}
 		break;
 	default:
 		return 1;
@@ -116,8 +126,8 @@ int main(int argc, char **argv)
 
 	link_t *entry_l, *service_l;
 
-	if(cache) {
-		if(init_caches()) die();
+	if(cache_invalidation_time) {
+		if(init_caches(cache_invalidation_time, cache_max_entries)) die();
 	}
 
 	if (init_socket_handling() < 0) die();

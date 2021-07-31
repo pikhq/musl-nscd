@@ -13,12 +13,10 @@ static int cache = 0;
 #define IS_CACHING if(!cache) { *err = 0; return NSS_STATUS_UNAVAIL; }
 #define IS_CACHING_FOR_WRITE(storage_buffer) if(!cache) { free(storage_buffer); return -1; }
 
-/* 10 minutes, stored as seconds */
-#define CACHE_INVALIDATION_TIME (10 * 60)
+#define CACHE_INITIAL_ENTRIES 32
 
-/* max cache entries; TODO: make configurable */
-#define CACHE_MAX_ENTRIES 100000
-#define CACHE_INITIAL_ENTRIES 512
+static time_t cache_invalidation_time;
+static size_t cache_max_entries;
 
 static time_t monotonic_seconds(void)
 {
@@ -35,7 +33,7 @@ static time_t monotonic_seconds(void)
 /* returns true if the timestamp is still valid */
 static bool compare_timestamps(time_t t, time_t now)
 {
-	return (now - t) < CACHE_INVALIDATION_TIME;
+	return (now - t) < cache_invalidation_time;
 }
 
 /* increment len and store the index for that new member in index */
@@ -49,13 +47,13 @@ static bool cache_increment_len(size_t *len, size_t *size, size_t sizeof_element
 
 	/* otherwise, try to increase cache size */
 
-	if(*size >= CACHE_MAX_ENTRIES)
+	if(*size >= cache_max_entries)
 		return false;
 
 	size_t new_size;
 	/* memory growth factor is 1.5x; see socket_handle.c for a similar impl */
-	if(*size > CACHE_MAX_ENTRIES - *size/2)
-		new_size = CACHE_MAX_ENTRIES;
+	if(*size > cache_max_entries - *size/2)
+		new_size = cache_max_entries;
 	else
 		new_size = *size + *size/2;
 
@@ -358,12 +356,19 @@ cleanup:
 	return ret;
 }
 
-int init_caches(void)
+int init_caches(long invalidation_time, long max_entries)
 {
 	#define MALLOC_CACHE(cache) do{ if(!(cache.res = malloc(cache.size * sizeof(*cache.res)))) return -1; }while(0)
 	MALLOC_CACHE(passwd_cache);
 	MALLOC_CACHE(group_cache);
 	MALLOC_CACHE(initgroups_cache);
+
+	cache_invalidation_time = invalidation_time;
+	if (max_entries > CACHE_INITIAL_ENTRIES) {
+		cache_max_entries = max_entries;
+	} else {
+		cache_max_entries = CACHE_INITIAL_ENTRIES;
+	}
 
 	cache = 1;
 	return 0;
