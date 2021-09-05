@@ -5,7 +5,7 @@ sbindir = $(exec_prefix)/sbin
 prefix = /usr/local
 includedir = $(prefix)/include
 libdir = $(prefix)/lib
-mandir = $(prefix)/man/man8
+mandir = $(prefix)/share/man
 
 SRC_DIRS = $(addprefix $(srcdir)/,src port)
 GEN_SRCS = $(sort $(patsubst $(srcdir)/%.y,obj/%.tab.c,$(wildcard $(addsuffix /*.y,$(SRC_DIRS)))) \
@@ -102,12 +102,12 @@ $(DESTDIR)$(sbindir)/%: obj/%
 $(DESTDIR)$(includedir)/%: $(srcdir)/include/%
 	$(INSTALL) -D -m 644 $< $@
 
-$(DESTDIR)$(mandir)/%: %
+$(DESTDIR)$(mandir)/man8/%: %
 	$(INSTALL) -D -m 644 $< $@
 
 install-headers: $(DESTDIR)$(includedir)/nss.h
 
-install-manpage: $(DESTDIR)$(mandir)/musl-nscd.8
+install-manpage: $(DESTDIR)$(mandir)/man8/musl-nscd.8
 
 install-tools: $(TOOLS:obj/%=$(DESTDIR)$(sbindir)/%)
 
