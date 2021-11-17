@@ -11,6 +11,7 @@ typedef unsigned char action;
 
 enum {
 	DB_ALIASES,
+	DB_AUTOMOUNT,
 	DB_ETHERS,
 	DB_GROUP,
 	DB_HOSTS,
