@@ -17,6 +17,7 @@
 #include "modules.h"
 #include "parse.h"
 #include "util.h"
+#include "libgen.h"
 
 list_t passwd_mods;
 list_t group_mods;
@@ -214,6 +215,11 @@ int main(int argc, char **argv)
 		if(bind(fd, (struct sockaddr*)&addr, sizeof addr) < 0) die();
 	}
 
+	// create only the last directory not recursive mode
+    	struct stat st = {0};
+    	if (stat(dirname(socket_path), &st) == -1) {
+           mkdir(dirname(socket_path), 0755);
+    	}
 	chmod(socket_path, 0666);
 
 	if(listen(fd, 100) < 0) die();
