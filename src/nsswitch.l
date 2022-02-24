@@ -15,6 +15,7 @@
 <LIST,ACTION,COMMENT>"\n" { BEGIN INITIAL; return '\n'; }
 
 aliases:?	{ yylval.database = DB_ALIASES; BEGIN LIST; return TOK_DB; }
+automount:?	{ yylval.database = DB_AUTOMOUNT; BEGIN LIST; return TOK_DB; }
 ethers:?	{ yylval.database = DB_ETHERS; BEGIN LIST; return TOK_DB; }
 group:?		{ yylval.database = DB_GROUP; BEGIN LIST; return TOK_DB; }
 hosts:?		{ yylval.database = DB_HOSTS; BEGIN LIST; return TOK_DB; }
