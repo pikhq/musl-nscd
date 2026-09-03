@@ -117,10 +117,16 @@ list:
 	}
 	| list item {
 		$$ = $1;
-		struct service *service = malloc(sizeof(*service));
-		if(!service) YYABORT;
-		memcpy(service, &$2, sizeof(*service));
-		list_push_back(&$$, &(service->link));
+		/* skip files: musl always checks files internally before
+		 * calling nscd, and libnss_files.so does not exist */
+		if(!strcmp($2.service, "files")) {
+			free($2.service);
+		} else {
+			struct service *service = malloc(sizeof(*service));
+			if(!service) YYABORT;
+			memcpy(service, &$2, sizeof(*service));
+			list_push_back(&$$, &(service->link));
+		}
 	}
 	;
 
