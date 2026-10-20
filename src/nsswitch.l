@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <syslog.h>
 %}
 
 %x COMMENT
@@ -27,6 +28,16 @@ publickey:?	{ yylval.database = DB_PUBLICKEY; BEGIN LIST; return TOK_DB; }
 rpc:?		{ yylval.database = DB_RPC; BEGIN LIST; return TOK_DB; }
 services:?	{ yylval.database = DB_SERVICES; BEGIN LIST; return TOK_DB; }
 shadow:?	{ yylval.database = DB_SHADOW; BEGIN LIST; return TOK_DB; }
+
+[[:alpha:]][[:alnum:]_-]*:? {
+	/* any other database (automount, sudoers, ...) is ignored, as glibc
+	 * does; the known names above win for matches of equal length */
+	syslog(LOG_INFO, "ignoring unsupported database '%.*s'",
+		(int)(yyleng - (yytext[yyleng-1] == ':')), yytext);
+	BEGIN COMMENT;
+}
+
+[ \t]+		{ /* leading whitespace before a database name */ }
 
 <LIST>"["	{ BEGIN ACTION; return '['; }
 <LIST>([[:alnum:]]|_)+ {

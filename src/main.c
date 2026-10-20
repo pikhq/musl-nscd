@@ -32,7 +32,9 @@ static void *get_dll(const char *service)
 		sprintf(path, "libnss_%s.so", service);
 		dll = dlopen(path, RTLD_NOW | RTLD_LOCAL);
 	}
-	if(!dll) die_fmt("%s: %s", path, dlerror());
+	/* a missing or broken module must not take down the lookups served by
+	 * the other modules: report it and let the caller skip the service */
+	if(!dll) syslog(LOG_ERR, "service '%s' skipped: %s", service, dlerror());
 	free(path);
 	return dll;
 }
@@ -86,6 +88,15 @@ int main(int argc, char **argv)
 	signal(SIGPIPE, SIG_IGN);
 
 	init_program_invocation_name(argv[0]);
+
+	/* open the log first, so problems found while reading the configuration
+	 * are reported to syslog too, not only to a console nobody watches when
+	 * the daemon is started by an init system */
+	openlog("musl-nscd", 0
+#ifdef LOG_PERROR
+			| LOG_PERROR
+#endif
+			, LOG_DAEMON);
 
 	while((c = getopt(argc, argv, "c:s:p:C:n:j:dx:X")) != -1) switch(c) {
 	case 'c':
@@ -156,6 +167,10 @@ int main(int argc, char **argv)
 		struct entry *entry = list_ref(entry_l, struct entry, link);
 		struct service *service;
 
+		/* set when "files" ends the lookup, see below */
+		bool skip_rest = false;
+		void *dll;
+
 		service_l = list_head(&entry->services);
 		while(service_l) {
 			service = list_ref(service_l, struct service, link);
@@ -167,13 +182,26 @@ int main(int argc, char **argv)
 				}
 			}
 
-			if(entry->database == DB_PASSWD) {
-				void *dll;
+			if(skip_rest) {
+				/* nothing after "files [NOTFOUND=return]" is consulted */
+			} else if((entry->database == DB_PASSWD || entry->database == DB_GROUP) &&
+			          !strcmp(service->service, "files")) {
+				/* musl reads /etc/passwd and /etc/group itself, before it
+				 * asks nscd at all, and there is no libnss_files for musl.
+				 * So a request reaching us means "files" already returned
+				 * NOTFOUND, wherever "files" appears in the list. */
+				const char *db = entry->database == DB_PASSWD ? "passwd" : "group";
+				if(service->on_status[STS_NOTFOUND] == ACT_RETURN) {
+					syslog(LOG_INFO, "%s: 'files [NOTFOUND=return]' ends the lookup, musl reads /etc/%s itself; services after it are not used", db, db);
+					skip_rest = true;
+				} else {
+					syslog(LOG_INFO, "%s: service 'files' skipped, musl reads /etc/%s itself", db, db);
+				}
+			} else if(entry->database == DB_PASSWD && (dll = get_dll(service->service))) {
 				struct mod_passwd *mod;
 				mod = malloc(sizeof(*mod));
 				if(!mod) die();
 
-				dll = get_dll(service->service);
 				mod->nss_getpwnam_r = (nss_getpwnam_r)get_fn(dll, "getpwnam_r", service->service);
 				if(!mod->nss_getpwnam_r) mod->nss_getpwnam_r = null_getpwnam_r;
 				mod->nss_getpwuid_r = (nss_getpwuid_r)get_fn(dll, "getpwuid_r", service->service);
@@ -185,13 +213,11 @@ int main(int argc, char **argv)
 				if(client_rules_use_service(mod->service)) client_rules_enabled = true;
 
 				list_push_back(&passwd_mods, &mod->link);
-			} else if(entry->database == DB_GROUP) {
-				void *dll;
+			} else if(entry->database == DB_GROUP && (dll = get_dll(service->service))) {
 				struct mod_group *mod;
 				mod = malloc(sizeof(*mod));
 				if(!mod) die();
 
-				dll = get_dll(service->service);
 				mod->nss_getgrnam_r = (nss_getgrnam_r)get_fn(dll, "getgrnam_r", service->service);
 				if(!mod->nss_getgrnam_r) mod->nss_getgrnam_r = null_getgrnam_r;
 				mod->nss_getgrgid_r = (nss_getgrgid_r)get_fn(dll, "getgrgid_r", service->service);
@@ -213,6 +239,11 @@ int main(int argc, char **argv)
 		entry_l = list_next(entry_l);
 		free(entry);
 	}
+
+	if(!list_head(&passwd_mods))
+		syslog(LOG_WARNING, "no usable service for passwd in %s, only /etc/passwd will be used", config_path);
+	if(!list_head(&group_mods))
+		syslog(LOG_WARNING, "no usable service for group in %s, only /etc/group will be used", config_path);
 
 	fd = socket(PF_UNIX, SOCK_STREAM, 0);
 	if(fd < 0) die();
@@ -239,11 +270,6 @@ int main(int argc, char **argv)
 
 	if(listen(fd, 100) < 0) die();
 
-	openlog("musl-nscd", 0
-#ifdef LOG_PERROR
-			| LOG_PERROR
-#endif
-			, LOG_DAEMON);
 
 	if(client_rules_enabled) client_rules_log();
 
