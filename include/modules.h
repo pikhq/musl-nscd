@@ -17,6 +17,7 @@ struct mod_group {
 	nss_getgrnam_r nss_getgrnam_r;
 	nss_getgrgid_r nss_getgrgid_r;
 	nss_initgroups_dyn nss_initgroups_dyn;
+	char *service;
 	action on_status[4];
 	link_t link;
 };
@@ -24,6 +25,7 @@ struct mod_group {
 struct mod_passwd {
 	nss_getpwnam_r nss_getpwnam_r;
 	nss_getpwuid_r nss_getpwuid_r;
+	char *service;
 	action on_status[4];
 	link_t link;
 };

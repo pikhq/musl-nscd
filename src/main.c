@@ -17,6 +17,7 @@
 #include "modules.h"
 #include "parse.h"
 #include "util.h"
+#include "client_rules.h"
 
 list_t passwd_mods;
 list_t group_mods;
@@ -79,13 +80,14 @@ int main(int argc, char **argv)
 	char *pid_path = 0;
 	bool daemonize = false;
 	unsigned cache_invalidation_time = 0, cache_max_entries = 1000, jobs = 0;
+	bool default_client_rules = true;
 	int c;
 
 	signal(SIGPIPE, SIG_IGN);
 
 	init_program_invocation_name(argv[0]);
 
-	while((c = getopt(argc, argv, "c:s:p:C:n:j:d")) != -1) switch(c) {
+	while((c = getopt(argc, argv, "c:s:p:C:n:j:dx:X")) != -1) switch(c) {
 	case 'c':
 		config_path = optarg;
 		break;
@@ -104,6 +106,14 @@ int main(int argc, char **argv)
 	case 'd':
 		daemonize = true;
 		break;
+	case 'x':
+		if(client_rule_parse(optarg)) {
+			die_fmt("invalid client rule: '%s', expected program:service", optarg);
+		}
+		break;
+	case 'X':
+		default_client_rules = false;
+		break;
 	case 'C':
 		cache_invalidation_time = atol(optarg);
 		if(cache_invalidation_time <= 0) {
@@ -118,6 +128,11 @@ int main(int argc, char **argv)
 		break;
 	default:
 		return 1;
+	}
+
+	/* winbindd must never be answered through nss_winbind, see client_rules.h */
+	if(default_client_rules) {
+		if(client_rule_add("winbindd", "winbind")) die();
 	}
 
 	yyin = fopen(config_path, "r");
@@ -165,6 +180,9 @@ int main(int argc, char **argv)
 				if(!mod->nss_getpwuid_r) mod->nss_getpwuid_r = null_getpwuid_r;
 
 				memcpy(mod->on_status, service->on_status, sizeof(mod->on_status));
+				mod->service = strdup(service->service);
+				if(!mod->service) die();
+				if(client_rules_use_service(mod->service)) client_rules_enabled = true;
 
 				list_push_back(&passwd_mods, &mod->link);
 			} else if(entry->database == DB_GROUP) {
@@ -182,6 +200,9 @@ int main(int argc, char **argv)
 				if(!mod->nss_initgroups_dyn) mod->nss_initgroups_dyn = null_initgroups_dyn;
 
 				memcpy(mod->on_status, service->on_status, sizeof(mod->on_status));
+				mod->service = strdup(service->service);
+				if(!mod->service) die();
+				if(client_rules_use_service(mod->service)) client_rules_enabled = true;
 
 				list_push_back(&group_mods, &mod->link);
 			}
@@ -223,6 +244,8 @@ int main(int argc, char **argv)
 			| LOG_PERROR
 #endif
 			, LOG_DAEMON);
+
+	if(client_rules_enabled) client_rules_log();
 
 	if(daemonize) {
 		int null_fd = 0;

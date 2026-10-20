@@ -22,6 +22,7 @@
 #include "parse.h"
 #include "modules.h"
 #include "list.h"
+#include "client_rules.h"
 
 /* glibc's NSS_BUFLEN_PASSWD (from pwd/pwd.h) and NSS_BUFLEN_GROUP (from grp/grp.h)
  * are set to 1024 and consider it a reasonable default */
@@ -32,7 +33,7 @@
 
 #define MIN_SERV_THREAD 2
 
-static int return_result(int fd, int swap, uint32_t reqtype, void *key);
+static int return_result(int fd, int swap, uint32_t reqtype, void *key, const char *client);
 
 static int strtouid(const char *restrict buf, uint32_t *id)
 {
@@ -83,6 +84,8 @@ static void *serv_thread(void *arg)
 		uint32_t id;
 		void *key;
 		int swap = 0;
+		char client_buf[CLIENT_NAME_MAX];
+		const char *client;
 
 		/* wait for job to be posted to this thread */
 		sem_wait(&st->s);
@@ -150,8 +153,16 @@ static void *serv_thread(void *arg)
 			goto cleanup_fd;
 		}
 
+		/* identify the client only when a rule could apply to it;
+		 * client stays null for unrestricted clients */
+		client = 0;
+		if(client_rules_enabled &&
+		   client_get_name(n, client_buf, sizeof client_buf) == 0 &&
+		   client_is_restricted(client_buf))
+			client = client_buf;
+
 		/* if return_result fails for any reason, we will just close the socket */
-		return_result(n, swap, buf[REQTYPE], key);
+		return_result(n, swap, buf[REQTYPE], key, client);
 
 cleanup_mem:
 		errno_stash = errno;
@@ -320,7 +331,7 @@ static enum nss_status nss_getkey(uint32_t reqtype, struct mod_passwd *mod_passw
 	return retval;
 }
 
-int return_result(int fd, int swap, uint32_t reqtype, void *key)
+int return_result(int fd, int swap, uint32_t reqtype, void *key, const char *client)
 {
 	union {
 		struct passwd p;
@@ -350,7 +361,9 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 	}
 
 	memset(&res, 0, sizeof res);
-	if((status = nss_getkey_cache(reqtype, key, &res, &buf, &ret)) == NSS_STATUS_SUCCESS) {
+	/* restricted clients bypass the cache: a cached entry may have come from
+	 * a service they must not see, and the cache doesn't record its source */
+	if(!client && (status = nss_getkey_cache(reqtype, key, &res, &buf, &ret)) == NSS_STATUS_SUCCESS) {
 		int err;
 		if(ISPWREQ(reqtype)) {
 			err = write_pwd(fd, swap, &res.p);
@@ -382,6 +395,10 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 			mod_group = list_ref(l, struct mod_group, link);
 			mod_passwd = 0;
 		}
+
+		/* skip services this client must not be answered from */
+		if(client && client_rule_match(client, using_passwd ? mod_passwd->service : mod_group->service))
+			continue;
 
 		/* GETINITGR doesn't use buf */
 		if(ISPWREQ(reqtype) || ISGRPREQ(reqtype)) {
@@ -468,8 +485,10 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key)
 			if(err > 0)
 				err = 0;
 
-			/* this entry wasn't in cache when we tried! */
-			if(status == NSS_STATUS_SUCCESS) {
+			/* this entry wasn't in cache when we tried!
+			 * results for restricted clients are not cached, so that the
+			 * cache only ever holds answers every client may see */
+			if(status == NSS_STATUS_SUCCESS && !client) {
 				/* we null buf here when it's given to a cache_*_add functions,
 				 * since the cache function takes ownership of it.
 				 * this way, the free() call below will be a no op */

@@ -15,6 +15,8 @@ It can also cache requests made to it
 .Op Fl C Ar cache_invalidation_time
 .Op Fl n Ar cache_maximum_entries
 .Op Fl j Ar threads
+.Op Fl x Ar program : Ns Ar service
+.Op Fl X
 .Op Fl d
 .Sh DESCRIPTION
 .Nm
@@ -64,6 +66,38 @@ The default is 1000 entries.
 .It Fl j Ar threads
 Specifies the number of threads the daemon should use.
 More threads can reduce latency.
+.It Fl x Ar program : Ns Ar service
+Do not pass requests from
+.Ar program
+to the NSS
+.Ar service .
+The client is identified by the basename of the executable of the process
+connected to the socket.
+Requests from such a client are answered by the remaining services only,
+bypass the cache, and their results are not cached.
+This option can be given multiple times.
+.Pp
+By default, a rule
+.Ql winbindd:winbind
+is active: Samba's
+.Nm winbindd
+must never be answered by the
+.Ql winbind
+service, because that sends the query back into
+.Nm winbindd
+itself and blocks it until its request timeout expires.
+With glibc, the winbind NSS module runs inside the
+.Nm winbindd
+process and avoids this on its own; through
+.Nm
+the request crosses a socket, so the decision has to be made here.
+.It Fl X
+Disable the default
+.Ql winbindd:winbind
+rule.
+Rules given with
+.Fl x
+remain active.
 .It Fl d
 This option makes it so
 .Nm
