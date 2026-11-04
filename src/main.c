@@ -307,7 +307,9 @@ int main(int argc, char **argv)
 		fclose(f);
 	}
 
-	chdir("/");
+	/* don't keep the startup directory busy; nscd works without this */
+	if(chdir("/") < 0)
+		syslog(LOG_WARNING, "chdir /: %s", strerror(errno));
 
 	if(init_socket_handling(jobs) < 0) die();
 	socket_handle(fd);
