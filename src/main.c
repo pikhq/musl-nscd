@@ -72,6 +72,25 @@ static enum nss_status null_initgroups_dyn(const char *a, gid_t b, long *c, long
 	return NSS_STATUS_NOTFOUND;
 }
 
+/* Create the socket directory if it doesn't exist, e.g. after a reboot.
+ * mkdir() itself is the existence check, EEXIST means there is nothing to do.
+ * Only the last component is created, with mode 0755 whatever the umask,
+ * so clients can reach the socket */
+static void create_socket_dir(const char *socket_path)
+{
+	char *dir = strdup(socket_path), *slash;
+	if(!dir) die();
+	slash = strrchr(dir, '/');
+	if(slash && slash != dir) {
+		*slash = 0;
+		if(mkdir(dir, 0755) == 0)
+			chmod(dir, 0755);
+		else if(errno != EEXIST)
+			die_fmt("%s: %s", dir, strerror(errno));
+	}
+	free(dir);
+}
+
 int main(int argc, char **argv)
 {
 	int fd;
@@ -220,6 +239,7 @@ int main(int argc, char **argv)
 		.sun_family = AF_UNIX
 	};
 	strncpy(addr.sun_path, socket_path, sizeof(addr.sun_path));
+	create_socket_dir(socket_path);
 	if(bind(fd, (struct sockaddr*)&addr, sizeof addr) < 0) {
 		int tmp_fd;
 		if(errno != EADDRINUSE)
