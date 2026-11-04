@@ -46,6 +46,7 @@ shadow:?	{ yylval.database = DB_SHADOW; BEGIN LIST; return TOK_DB; }
 }
 <LIST>[ \t] { ; }
 
+<ACTION>[ \t]+		{ /* blanks inside brackets: [ NOTFOUND = return ] */ }
 <ACTION>"!"|"="		{ return *yytext; }
 <ACTION>"]"		{ BEGIN LIST; return *yytext; }
 <ACTION>"SUCCESS"	{ yylval.status = STS_SUCCESS; return TOK_STS; }
