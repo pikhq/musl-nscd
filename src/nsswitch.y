@@ -38,7 +38,7 @@ top:
 	;
 
 file:
-	%empty {
+	/* empty */ {
 		list_init(&$$);
 	}
 	| file line {
@@ -88,7 +88,7 @@ modifier:
 	;
 
 modifiers:
-	%empty {
+	/* empty */ {
 		memcpy($$, default_actions, sizeof($$));
 	}
 	| modifiers modifier {
@@ -112,7 +112,7 @@ item:
 	;
 
 list:
-	%empty {
+	/* empty */ {
 		list_init(&$$);
 	}
 	| list item {

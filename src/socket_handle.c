@@ -418,16 +418,18 @@ int return_result(int fd, int swap, uint32_t reqtype, void *key, const char *cli
 			if(status == NSS_STATUS_TRYAGAIN && ret == ERANGE) {
 				size_t new_len;
 				char *new_buf;
-				if(buf_len == SIZE_MAX) {
+				/* no object can be larger than PTRDIFF_MAX, so that is
+				 * the limit for the buffer, not SIZE_MAX */
+				if(buf_len >= PTRDIFF_MAX) {
 					free(buf);
 					errno = ENOMEM;
 					return -1;
 				}
 				/* memory growth factor is 1.5x.
-				 * to avoid overshooting SIZE_MAX and overflowing,
-				 * we use the check below: buf_len > (2/3) * SIZE_MAX */
-				if(buf_len > SIZE_MAX - buf_len/2) {
-					new_len = SIZE_MAX;
+				 * to avoid overshooting PTRDIFF_MAX,
+				 * we use the check below: buf_len > (2/3) * PTRDIFF_MAX */
+				if(buf_len > PTRDIFF_MAX - buf_len/2) {
+					new_len = PTRDIFF_MAX;
 				} else {
 					/* buf_len * 1.5 */
 					new_len = buf_len + buf_len/2;
