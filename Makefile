@@ -40,7 +40,7 @@ all: $(TOOLS)
 
 OBJ_DIRS = $(sort $(patsubst %/,%,$(dir $(BINS) $(OBJS) $(TESTS) $(GENH))) obj/src obj/include)
 
-$(TESTS) $(BINS) $(OBJS) $(GENH): | $(OBJ_DIRS)
+$(TESTS) $(BINS) $(OBJS) $(GENH) $(GEN_SRCS): | $(OBJ_DIRS)
 
 $(OBJ_DIRS):
 	mkdir -p $@
